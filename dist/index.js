@@ -2689,7 +2689,7 @@ var __awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argume
 
 
 
-const configPath = `/root/jira/config.yml`;
+const configPath = `${process.env.HOME}/jira/config.yml`;
 const AsyncFunction = Object.getPrototypeOf(function () {
     return __awaiter(this, void 0, void 0, function* () { });
 }).constructor;
@@ -2726,6 +2726,7 @@ const getArgs = () => {
         jiraConfig.jiraEndpoint = JIRA_BASE_URL;
         jiraConfig.jiraToken = JIRA_API_TOKEN;
     }
+    Object(core.info)(`cofigFile: ${JSON.stringify(Object(external_fs_.readFileSync)(configPath, "utf8"))}`);
     Object(core.info)(`after throw: config: ${JSON.stringify(jiraConfig)}, jiraEndpoint: ${jiraConfig.jiraEndpoint}`);
     const githubToken = Object(core.getInput)("github-token", { required: true });
     const colReviewRequested = Object(core.getInput)("column-to-move-to-when-review-requested", { required: true });

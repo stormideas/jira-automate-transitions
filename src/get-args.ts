@@ -3,7 +3,7 @@ import { parse } from "yaml";
 import { readFileSync } from "fs";
 import { ParsedResult, JiraConfig, JiraConfigFile } from "./interfaces";
 
-const configPath = `/root/jira/config.yml`;
+const configPath = `${process.env.HOME}/jira/config.yml`;
 
 const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
 
@@ -49,6 +49,8 @@ const getArgs: () => ParsedResult | void = () => {
     jiraConfig.jiraEndpoint = JIRA_BASE_URL;
     jiraConfig.jiraToken = JIRA_API_TOKEN;
   }
+
+  core.info(`cofigFile: ${JSON.stringify(readFileSync(configPath, "utf8"))}`);
 
   core.info(`after throw: config: ${JSON.stringify(jiraConfig)}, jiraEndpoint: ${jiraConfig.jiraEndpoint}`);
 
