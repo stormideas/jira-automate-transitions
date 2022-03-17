@@ -1,0 +1,32 @@
+name: Jira Ticket Transitioner Action
+author: Tuan Dao (heryhudson@gmail.com)
+description: This action can update Jira issue status by event
+
+branding:
+  icon: repeat
+  color: blue
+
+runs:
+  using: "node12"
+  main: "./dist/index.js"
+inputs:
+  github-token:
+    required: true
+  column-to-move-to-when-review-requested:
+    description: case-sensitive
+    required: true
+  column-to-move-to-when-changes-requested:
+    description: case-sensitive
+    required: true
+  column-to-move-to-when-merged:
+    description: case-sensitive
+    required: false
+  jira-endpoint:
+    required: false
+  jira-account:
+    required: false
+  jira-token:
+    required: false
+  jira-issue-id:
+    required: false
+    description: e.g FOO-372
