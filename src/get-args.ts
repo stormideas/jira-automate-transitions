@@ -41,13 +41,13 @@ const getArgs: () => ParsedResult | void = () => {
   } catch (error) {
     console.log(`Missing input, using config file ${configPath} instead...`);
     const {
-      JIRA_API_TOKEN,
-      JIRA_BASE_URL,
-      JIRA_USER_EMAIL
+      token,
+      baseUrl,
+      email
     }: JiraConfigFile = parse(readFileSync(configPath, "utf8"));
-    jiraConfig.jiraAccount = JIRA_USER_EMAIL;
-    jiraConfig.jiraEndpoint = JIRA_BASE_URL;
-    jiraConfig.jiraToken = JIRA_API_TOKEN;
+    jiraConfig.jiraAccount = email;
+    jiraConfig.jiraEndpoint = baseUrl;
+    jiraConfig.jiraToken = token;
   }
 
   core.info(`cofigFile: ${JSON.stringify(readFileSync(configPath, "utf8"))}`);

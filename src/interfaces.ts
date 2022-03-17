@@ -24,9 +24,9 @@ interface AdditionalJiraConfig {
 }
 
 export interface JiraConfigFile {
-  JIRA_BASE_URL: string;
-  JIRA_USER_EMAIL: string;
-  JIRA_API_TOKEN: string;
+  baseUrl: string;
+  email: string;
+  token: string;
 }
 
 type Params = _Params & JiraConfig;
