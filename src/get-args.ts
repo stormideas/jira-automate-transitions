@@ -39,7 +39,7 @@ const getArgs: () => ParsedResult | void = () => {
       if (value === "" || !value) throw new Error("");
     });
   } catch (error) {
-    console.log(`Missing input, using config file instead...`);
+    console.log(`Missing input, using config file ${configPath} instead...`);
     const {
       JIRA_API_TOKEN,
       JIRA_BASE_URL,

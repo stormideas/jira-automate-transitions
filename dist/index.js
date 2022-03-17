@@ -2720,7 +2720,7 @@ const getArgs = () => {
         });
     }
     catch (error) {
-        console.log(`Missing input, using config file instead...`);
+        console.log(`Missing input, using config file ${configPath} instead...`);
         const { JIRA_API_TOKEN, JIRA_BASE_URL, JIRA_USER_EMAIL } = Object(yaml.parse)(Object(external_fs_.readFileSync)(configPath, "utf8"));
         jiraConfig.jiraAccount = JIRA_USER_EMAIL;
         jiraConfig.jiraEndpoint = JIRA_BASE_URL;
