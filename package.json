@@ -11,6 +11,7 @@
     "@types/node-fetch": "^2.5.5",
     "@types/yaml": "^1.2.0",
     "node-fetch": "^2.6.0",
+    "typescript": "^5.0.4",
     "yaml": "^1.7.2"
   },
   "devDependencies": {
@@ -26,9 +27,7 @@
     "playground": "ncc run src/playground/index.ts"
   },
   "husky": {
-    "hooks": {
-      "pre-commit": "npm run build"
-    }
+    "hooks": {}
   },
   "repository": {
     "type": "git",
