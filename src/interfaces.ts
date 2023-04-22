@@ -15,12 +15,7 @@ interface _Params {
   prLabelToBeDevTested?: string;
   resolveTicketIdsFunc?: (
     branchName: string
-  ) => Promise<string[] | string | void>;
-}
-
-interface AdditionalJiraConfig {
-  jiraProject: string;
-  jiraIssueNumber: number;
+  ) => Promise<string[]>;
 }
 
 export interface JiraConfigFile {
@@ -29,8 +24,7 @@ export interface JiraConfigFile {
   token: string;
 }
 
-type Params = _Params & JiraConfig;
-export type ParsedInput = Params & AdditionalJiraConfig;
+export type ParsedInput = _Params & JiraConfig;
 export interface ParsedResult {
   success: boolean;
   exit: boolean;
@@ -44,5 +38,10 @@ type HandlerParams = Pick<
 
 export type HandleTransitionParams = HandlerParams & {
   colName: string;
-  branchName?: string;
+  prString: string;
+};
+
+export type TransitionParams = HandlerParams & {
+  colName: string;
+  jiraIssueId: string;
 };
