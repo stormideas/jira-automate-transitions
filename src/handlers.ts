@@ -10,9 +10,6 @@ const transitionIssue = async ({
   jiraIssueId,
   colName
 }: TransitionParams) => {
-  core.info(`Moving issue ${jiraIssueId} to ${colName}`);
-  return;
-
   const jira = new JiraClient(jiraTokenEncoded);
 
   const issueDetail = await jira.request(
@@ -67,8 +64,6 @@ const handleTransitionIssue = async ({
 }: HandleTransitionParams) => {
   const resolverFunc = resolveTicketIdsFunc ?? parseString;
   const issues = await resolverFunc(searchString);
-
-  core.info(`Issues ${issues}`)
 
   if (issues.length == 0) {
     core.info('No issues detected in PR details')

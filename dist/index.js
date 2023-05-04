@@ -4216,8 +4216,6 @@ var __rest = (undefined && undefined.__rest) || function (s, e) {
 
 const transitionIssue = ({ jiraTokenEncoded, jiraEndpoint, jiraIssueId, colName }) => handlers_awaiter(void 0, void 0, void 0, function* () {
     var _a, _b;
-    Object(core.info)(`Moving issue ${jiraIssueId} to ${colName}`);
-    return;
     const jira = new jira_JiraClient(jiraTokenEncoded);
     const issueDetail = yield jira.request(`${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
     Object(core.info)(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
@@ -4293,7 +4291,8 @@ function run() {
                     case "pull_request":
                         const { pull_request: { labels, merged } } = payload;
                         switch (payload.action) {
-                            case "review_requested": {
+                            case "review_requested":
+                            case "edited": {
                                 yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenReviewRequested }));
                                 break;
                             }
