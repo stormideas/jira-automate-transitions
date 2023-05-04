@@ -30,8 +30,7 @@ async function run() {
           const {
             pull_request: {
               labels,
-              merged,
-              head: { ref }
+              merged
             }
           } = payload as Webhooks.WebhookPayloadPullRequest;
 

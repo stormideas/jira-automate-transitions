@@ -4291,7 +4291,7 @@ function run() {
                 Object(core.info)(`String to search: ${parsedInput.searchString}`);
                 switch (eventName) {
                     case "pull_request":
-                        const { pull_request: { labels, merged, head: { ref } } } = payload;
+                        const { pull_request: { labels, merged } } = payload;
                         switch (payload.action) {
                             case "review_requested": {
                                 yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenReviewRequested }));
