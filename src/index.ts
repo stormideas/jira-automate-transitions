@@ -67,15 +67,10 @@ async function run() {
           if (payload.action === "submitted") {
             const {
               pull_request: {
-                title,
-                number,
-                head: { ref }
+                number
               },
               review: { id }
             } = context.payload as Webhooks.WebhookPayloadPullRequestReview;
-
-            const stringToCheck = `${ref} ${title}`;
-            core.info(`PR description: ${stringToCheck}`);
 
             const { githubToken } = parsedInput;
             const githubWrapper = new Github(githubToken, owner, repo);

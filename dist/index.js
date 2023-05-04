@@ -4312,9 +4312,7 @@ function run() {
                         break;
                     case "pull_request_review":
                         if (payload.action === "submitted") {
-                            const { pull_request: { title, number, head: { ref } }, review: { id } } = context.payload;
-                            const stringToCheck = `${ref} ${title}`;
-                            Object(core.info)(`PR description: ${stringToCheck}`);
+                            const { pull_request: { number }, review: { id } } = context.payload;
                             const { githubToken } = parsedInput;
                             const githubWrapper = new github_Github(githubToken, owner, repo);
                             const isRequestChange = yield githubWrapper.checkReviewIsRequestChange({
