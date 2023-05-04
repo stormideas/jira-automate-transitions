@@ -16,8 +16,8 @@ const transitionIssue = async ({
     `${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`
   );
 
-  core.info(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
-  core.info(`detail: ${issueDetail}`);
+  core.debug(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
+  core.debug(`detail: ${issueDetail}`);
 
   const {
     fields: {
@@ -36,7 +36,7 @@ const transitionIssue = async ({
       `${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}/transitions`
     );
 
-    core.info(`transitions: ${JSON.stringify(availableTransitions)}`)
+    core.debug(`transitions: ${JSON.stringify(availableTransitions)}`)
 
     const transitionId = availableTransitions.transitions?.find(
       (t: any) => t.name === colName

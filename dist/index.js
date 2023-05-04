@@ -4218,8 +4218,8 @@ const transitionIssue = ({ jiraTokenEncoded, jiraEndpoint, jiraIssueId, colName 
     var _a, _b;
     const jira = new jira_JiraClient(jiraTokenEncoded);
     const issueDetail = yield jira.request(`${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
-    Object(core.info)(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
-    Object(core.info)(`detail: ${issueDetail}`);
+    Object(core.debug)(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
+    Object(core.debug)(`detail: ${issueDetail}`);
     const { fields: { status: { name } } } = issueDetail;
     Object(core.info)(`name: ${name}, colName: ${colName}`);
     if (name === colName) {
@@ -4230,7 +4230,7 @@ const transitionIssue = ({ jiraTokenEncoded, jiraEndpoint, jiraIssueId, colName 
     }
     else {
         const availableTransitions = yield jira.request(`${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}/transitions`);
-        Object(core.info)(`transitions: ${JSON.stringify(availableTransitions)}`);
+        Object(core.debug)(`transitions: ${JSON.stringify(availableTransitions)}`);
         const transitionId = (_b = (_a = availableTransitions.transitions) === null || _a === void 0 ? void 0 : _a.find((t) => t.name === colName)) === null || _b === void 0 ? void 0 : _b.id;
         if (!transitionId)
             throw new Error(`
