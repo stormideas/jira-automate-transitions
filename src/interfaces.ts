@@ -2,7 +2,6 @@ export interface JiraConfig {
   jiraEndpoint: string;
   jiraAccount: string;
   jiraToken: string;
-  jiraIssueId: string;
   jiraTokenEncoded: string;
 }
 
@@ -13,6 +12,7 @@ interface _Params {
   columnToMoveToWhenMerged?: string;
   columnToMoveToWhenMergedToBeDevTested?: string;
   prLabelToBeDevTested?: string;
+  searchString: string;
   resolveTicketIdsFunc?: (
     branchName: string
   ) => Promise<string[]>;
@@ -33,12 +33,12 @@ export interface ParsedResult {
 }
 type HandlerParams = Pick<
   ParsedInput,
-  "jiraTokenEncoded" | "jiraEndpoint" | "jiraIssueId" | "resolveTicketIdsFunc"
+  "jiraTokenEncoded" | "jiraEndpoint" | "resolveTicketIdsFunc"
 >;
 
 export type HandleTransitionParams = HandlerParams & {
   colName: string;
-  prString: string;
+  searchString: string;
 };
 
 export type TransitionParams = HandlerParams & {

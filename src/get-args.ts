@@ -16,13 +16,12 @@ const getArgs: () => ParsedResult | void = () => {
       : undefined;
 
   let jiraConfig: Partial<JiraConfig> = {};
-  jiraConfig.jiraIssueId = core.getInput("jira-issue-id");
   try {
     jiraConfig.jiraAccount = core.getInput("jira-account");
     jiraConfig.jiraEndpoint = core.getInput("jira-endpoint");
     jiraConfig.jiraToken = core.getInput("jira-token");
 
-    const { jiraAccount, jiraEndpoint, jiraIssueId, jiraToken } = jiraConfig;
+    const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
 
     core.info(`config: ${JSON.stringify(jiraConfig)}`);
 
@@ -57,8 +56,9 @@ const getArgs: () => ParsedResult | void = () => {
   const colMerged = core.getInput("column-to-move-to-when-merged");
   const colMergedDevTested = core.getInput("column-to-move-to-when-merged-to-be-dev-tested");
   const devTestedLabel = core.getInput("pr-label-to-be-dev-tested");
+  const searchString = core.getInput("search-string", {required: true});
 
-  const { jiraAccount, jiraEndpoint, jiraToken, jiraIssueId } = jiraConfig;
+  const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
 
   return {
     success: true,
@@ -70,9 +70,9 @@ const getArgs: () => ParsedResult | void = () => {
       columnToMoveToWhenMerged: colMerged,
       columnToMoveToWhenMergedToBeDevTested: colMergedDevTested,
       prLabelToBeDevTested: devTestedLabel,
+      searchString,
       jiraAccount,
       jiraEndpoint,
-      jiraIssueId,
       jiraToken,
       jiraTokenEncoded: Buffer.from(`${jiraAccount}:${jiraToken}`).toString(
         "base64"

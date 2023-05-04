@@ -13,6 +13,9 @@ inputs:
   github-token:
     description: github token
     required: true
+  search-string:
+    description: Custom string where to search for Jira issues
+    required: true
   column-to-move-to-when-review-requested:
     description: case-sensitive
     required: true
@@ -37,6 +40,3 @@ inputs:
   jira-token:
     description: jira token
     required: false
-  jira-issue-id:
-    required: false
-    description: e.g FOO-372

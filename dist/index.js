@@ -4052,12 +4052,11 @@ const getArgs = () => {
         ? new AsyncFunction("branchName", resolveTicketIdsScript)
         : undefined;
     let jiraConfig = {};
-    jiraConfig.jiraIssueId = Object(core.getInput)("jira-issue-id");
     try {
         jiraConfig.jiraAccount = Object(core.getInput)("jira-account");
         jiraConfig.jiraEndpoint = Object(core.getInput)("jira-endpoint");
         jiraConfig.jiraToken = Object(core.getInput)("jira-token");
-        const { jiraAccount, jiraEndpoint, jiraIssueId, jiraToken } = jiraConfig;
+        const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
         Object(core.info)(`config: ${JSON.stringify(jiraConfig)}`);
         Array.from([jiraAccount, jiraEndpoint, jiraToken]).forEach(value => {
             if (value === "" || !value)
@@ -4079,7 +4078,8 @@ const getArgs = () => {
     const colMerged = Object(core.getInput)("column-to-move-to-when-merged");
     const colMergedDevTested = Object(core.getInput)("column-to-move-to-when-merged-to-be-dev-tested");
     const devTestedLabel = Object(core.getInput)("pr-label-to-be-dev-tested");
-    const { jiraAccount, jiraEndpoint, jiraToken, jiraIssueId } = jiraConfig;
+    const searchString = Object(core.getInput)("search-string", { required: true });
+    const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
     return {
         success: true,
         exit: false,
@@ -4090,9 +4090,9 @@ const getArgs = () => {
             columnToMoveToWhenMerged: colMerged,
             columnToMoveToWhenMergedToBeDevTested: colMergedDevTested,
             prLabelToBeDevTested: devTestedLabel,
+            searchString,
             jiraAccount,
             jiraEndpoint,
-            jiraIssueId,
             jiraToken,
             jiraTokenEncoded: Buffer.from(`${jiraAccount}:${jiraToken}`).toString("base64"),
             resolveTicketIdsFunc
@@ -4246,16 +4246,12 @@ const transitionIssue = ({ jiraTokenEncoded, jiraEndpoint, jiraIssueId, colName 
     }
 });
 const handleTransitionIssue = (_c) => handlers_awaiter(void 0, void 0, void 0, function* () {
-    var { resolveTicketIdsFunc, prString, jiraIssueId } = _c, rest = __rest(_c, ["resolveTicketIdsFunc", "prString", "jiraIssueId"]);
-    if (jiraIssueId) {
-        return transitionIssue(Object.assign(Object.assign({}, rest), { jiraIssueId }));
-    }
+    var { resolveTicketIdsFunc, searchString } = _c, rest = __rest(_c, ["resolveTicketIdsFunc", "searchString"]);
     const resolverFunc = resolveTicketIdsFunc !== null && resolveTicketIdsFunc !== void 0 ? resolveTicketIdsFunc : parseString;
-    const issues = yield resolverFunc(prString);
+    const issues = yield resolverFunc(searchString);
     if (issues.length == 0) {
-        Object(core.setFailed)('No issues detected in PR details');
+        Object(core.info)('No issues detected in PR details');
     }
-    Object(core.info)('going further');
     issues.forEach(jiraIssueId => {
         transitionIssue(Object.assign(Object.assign({}, rest), { jiraIssueId }));
     });
@@ -4292,14 +4288,13 @@ function run() {
                 const { repo: { owner, repo }, payload, eventName } = context;
                 Object(core.info)(`eventName: ${eventName}`);
                 Object(core.info)(`payload.action: ${payload.action}`);
+                Object(core.info)(`String to search: ${parsedInput.searchString}`);
                 switch (eventName) {
                     case "pull_request":
-                        const { pull_request: { labels, title, merged, head: { ref } } } = payload;
-                        const stringToCheck = `${ref} ${title}`;
-                        Object(core.info)(`PR description: ${stringToCheck}`);
+                        const { pull_request: { labels, merged, head: { ref } } } = payload;
                         switch (payload.action) {
                             case "review_requested": {
-                                yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenReviewRequested, prString: stringToCheck }));
+                                yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenReviewRequested }));
                                 break;
                             }
                             case "closed": {
@@ -4309,7 +4304,7 @@ function run() {
                                     colName = parsedInput.columnToMoveToWhenMergedToBeDevTested;
                                 }
                                 if (merged && colName) {
-                                    yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: colName, prString: stringToCheck }));
+                                    yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: colName }));
                                 }
                                 break;
                             }
@@ -4327,7 +4322,7 @@ function run() {
                                 review_id: id
                             });
                             if (isRequestChange) {
-                                yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenChangesRequested, prString: stringToCheck }));
+                                yield handleTransitionIssue(Object.assign(Object.assign({}, parsedInput), { colName: parsedInput.columnToMoveToWhenChangesRequested }));
                             }
                         }
                         break;

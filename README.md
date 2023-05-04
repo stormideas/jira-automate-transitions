@@ -30,14 +30,13 @@ This action can move Jira issue to col of choice by event (e.g: move to IN REVIE
 - `jira-token`:
   - _Optional_ (**required** when not using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login))
   - See [Using Jira API with Basic header scheme](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)
-- `jira-issue-id`:
-  - _Optional_
-  - Case-sensitive
-  - Issue key, e.g: `FOO-432`, `UMA-501`, ...
+- `search-string`:
+  - _Required_
+  - The string to search for Jira issues.
 
 # Important
 
-Although all `jira-*` (except for `jira-issue-id`) inputs are optional, they must be provided explicitly unless you are using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login).
+Although all `jira-*` inputs are optional, they must be provided explicitly unless you are using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login).
 
 [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login) is an action that will write jira config data to a temporary file during the workflow so that other action can extract from it rather than having to input data.
 
@@ -64,5 +63,5 @@ Starting from `v1.0.5`, the `jira-isssue-id` input will be optional due to the r
     jira-endpoint: https://...        # 3 inputs here are not required
     jira-account: example@mail.com    # if you use the action mentioned
     jira-token: ******                # above
-    jira-issue-id: FOO-312
+    search-string: ${{ github.event.pull_request.title }}
 ```

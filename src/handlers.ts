@@ -62,20 +62,15 @@ const transitionIssue = async ({
 
 const handleTransitionIssue = async ({
   resolveTicketIdsFunc,
-  prString,
-  jiraIssueId,
+  searchString,
   ...rest
 }: HandleTransitionParams) => {
-  if (jiraIssueId) {
-    return transitionIssue({ ...rest, jiraIssueId });
-  }
   const resolverFunc = resolveTicketIdsFunc ?? parseString;
-  const issues = await resolverFunc(prString);
+  const issues = await resolverFunc(searchString);
 
   if (issues.length == 0) {
-    core.setFailed('No issues detected in PR details')
+    core.info('No issues detected in PR details')
   }
-  core.info('going further');
 
   issues.forEach(jiraIssueId => {
     transitionIssue({ ...rest, jiraIssueId });

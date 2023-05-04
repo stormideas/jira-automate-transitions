@@ -23,27 +23,23 @@ async function run() {
       } = context;
       core.info(`eventName: ${eventName}`);
       core.info(`payload.action: ${payload.action}`);
+      core.info(`String to search: ${parsedInput.searchString}`);
 
       switch (eventName) {
         case "pull_request":
           const {
             pull_request: {
               labels,
-              title,
               merged,
               head: { ref }
             }
           } = payload as Webhooks.WebhookPayloadPullRequest;
 
-          const stringToCheck = `${ref} ${title}`;
-          core.info(`PR description: ${stringToCheck}`);
-
           switch (payload.action) {
             case "review_requested": {
               await handleTransitionIssue({
                 ...parsedInput,
-                colName: parsedInput.columnToMoveToWhenReviewRequested,
-                prString: stringToCheck
+                colName: parsedInput.columnToMoveToWhenReviewRequested
               });
               break;
             }
@@ -61,8 +57,7 @@ async function run() {
               if (merged && colName) {
                 await handleTransitionIssue({
                   ...parsedInput,
-                  colName: colName,
-                  prString: stringToCheck
+                  colName: colName
                 });
               }
               break;
@@ -93,8 +88,7 @@ async function run() {
             if (isRequestChange) {
               await handleTransitionIssue({
                 ...parsedInput,
-                colName: parsedInput.columnToMoveToWhenChangesRequested,
-                prString: stringToCheck
+                colName: parsedInput.columnToMoveToWhenChangesRequested
               });
             }
           }
