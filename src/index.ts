@@ -1,5 +1,5 @@
 import * as core from "@actions/core";
-import { getArgs } from "./get-args";
+import { getArgs, parseString } from "./get-args";
 import { ParsedResult } from "./interfaces";
 import * as github from "@actions/github";
 import { Github } from "./github";
@@ -23,80 +23,77 @@ async function run() {
       } = context;
       core.info(`eventName: ${eventName}`);
       core.info(`payload.action: ${payload.action}`);
+      core.info(`String to search: ${parsedInput.searchString}`);
 
-      if (
-        eventName === "pull_request" &&
-        payload.action === "review_requested"
-      ) {
-        const {
-          pull_request: {
-            head: { ref }
+      switch (eventName) {
+        case "pull_request":
+          const {
+            pull_request: {
+              labels,
+              merged
+            }
+          } = payload as Webhooks.WebhookPayloadPullRequest;
+
+          switch (payload.action) {
+            case "review_requested":
+            case "edited": {
+              await handleTransitionIssue({
+                ...parsedInput,
+                colName: parsedInput.columnToMoveToWhenReviewRequested
+              });
+              break;
+            }
+            case "closed": {
+              const devTestedLabel = labels.find(
+                (t: any) => t.name === parsedInput.prLabelToBeDevTested
+              );
+
+              var colName = parsedInput.columnToMoveToWhenMerged;
+
+              if (devTestedLabel) {
+                colName = parsedInput.columnToMoveToWhenMergedToBeDevTested;
+              }
+
+              if (merged && colName) {
+                await handleTransitionIssue({
+                  ...parsedInput,
+                  colName: colName
+                });
+              }
+              break;
+            }
           }
-        } = payload as Webhooks.WebhookPayloadPullRequest;
-        core.info(`Branch name: ${ref}`);
-        await handleTransitionIssue({
-          ...parsedInput,
-          colName: parsedInput.columnToMoveToWhenReviewRequested,
-          branchName: ref
-        });
-      } else if (
-        eventName === "pull_request_review" &&
-        payload.action === "submitted"
-      ) {
-        const {
-          pull_request: {
-            number,
-            head: { ref }
-          },
-          review: { id }
-        } = context.payload as Webhooks.WebhookPayloadPullRequestReview;
-        const { githubToken } = parsedInput;
-        const githubWrapper = new Github(githubToken, owner, repo);
-        const isRequestChange = await githubWrapper.checkReviewIsRequestChange({
-          pull_number: number,
-          review_id: id
-        });
-        if (isRequestChange) {
-          core.info(`Branch name: ${ref}`);
-          await handleTransitionIssue({
-            ...parsedInput,
-            colName: parsedInput.columnToMoveToWhenChangesRequested,
-            branchName: ref
-          });
-        }
-      } else if (eventName === "pull_request" && payload.action === "closed") {
-        const {
-          pull_request: {
-            merged,
-            head: { ref }
+          break;
+        case "pull_request_review":
+          if (payload.action === "submitted") {
+            const {
+              pull_request: {
+                number
+              },
+              review: { id }
+            } = context.payload as Webhooks.WebhookPayloadPullRequestReview;
+
+            const { githubToken } = parsedInput;
+            const githubWrapper = new Github(githubToken, owner, repo);
+            const isRequestChange = await githubWrapper.checkReviewIsRequestChange({
+              pull_number: number,
+              review_id: id
+            });
+
+            if (isRequestChange) {
+              await handleTransitionIssue({
+                ...parsedInput,
+                colName: parsedInput.columnToMoveToWhenChangesRequested
+              });
+            }
           }
-        } = payload as Webhooks.WebhookPayloadPullRequest;
-
-        const labels = payload.pull_request?.labels;
-        const devTestedLabel = labels.find(
-          (t: any) => t.name === parsedInput.prLabelToBeDevTested
-        );
-  
-        var colName = parsedInput.columnToMoveToWhenMerged;
-
-        if (devTestedLabel) {
-          colName = parsedInput.columnToMoveToWhenMergedToBeDevTested;
-        }
-        
-        core.info(`moving to column: ${colName}`);
-        
-        if (merged && colName) {
-          core.info(`Branch name: ${ref}`);
-          await handleTransitionIssue({
-            ...parsedInput,
-            colName: colName,
-            branchName: ref
-          });
-        }
+          break;
       }
     }
   } catch (error) {
-    core.setFailed(error.message);
+    if (error instanceof Error) {
+      core.setFailed(error.message);
+    }
   }
 }
 

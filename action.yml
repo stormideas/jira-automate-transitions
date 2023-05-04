@@ -7,10 +7,14 @@ branding:
   color: blue
 
 runs:
-  using: "node12"
+  using: "node16"
   main: "./dist/index.js"
 inputs:
   github-token:
+    description: github token
+    required: true
+  search-string:
+    description: Custom string where to search for Jira issues
     required: true
   column-to-move-to-when-review-requested:
     description: case-sensitive
@@ -20,13 +24,19 @@ inputs:
     required: true
   column-to-move-to-when-merged:
     description: case-sensitive
-    required: false
+    required: true
+  column-to-move-to-when-merged-to-be-dev-tested:
+    description: case-sensitive
+    required: true
+  pr-label-to-be-dev-tested:
+    description: label to be dev tested
+    required: true
   jira-endpoint:
+    description: jira endpoint
     required: false
   jira-account:
+    description: jira account
     required: false
   jira-token:
+    description: jira token
     required: false
-  jira-issue-id:
-    required: false
-    description: e.g FOO-372

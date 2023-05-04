@@ -16,24 +16,14 @@ const getArgs: () => ParsedResult | void = () => {
       : undefined;
 
   let jiraConfig: Partial<JiraConfig> = {};
-  jiraConfig.jiraIssueId = core.getInput("jira-issue-id");
   try {
     jiraConfig.jiraAccount = core.getInput("jira-account");
     jiraConfig.jiraEndpoint = core.getInput("jira-endpoint");
     jiraConfig.jiraToken = core.getInput("jira-token");
 
-    const { jiraAccount, jiraEndpoint, jiraIssueId, jiraToken } = jiraConfig;
+    const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
 
-    core.info(`config: ${JSON.stringify(jiraConfig)}, jiraEndpoint: ${jiraEndpoint}`);
-
-    if ((!jiraIssueId || jiraIssueId === "") && !resolveTicketIdsFunc) {
-      return {
-        exit: true,
-        success: false,
-        message: "Jira issue id and ticket id resolver not found, exiting...",
-        parsedInput: undefined
-      };
-    }
+    core.info(`config: ${JSON.stringify(jiraConfig)}`);
 
     Array.from([jiraAccount, jiraEndpoint, jiraToken]).forEach(value => {
       if (value === "" || !value) throw new Error("");
@@ -50,9 +40,9 @@ const getArgs: () => ParsedResult | void = () => {
     jiraConfig.jiraToken = token;
   }
 
-  core.info(`cofigFile: ${JSON.stringify(readFileSync(configPath, "utf8"))}`);
+  core.info(`configFile: ${JSON.stringify(readFileSync(configPath, "utf8"))}`);
 
-  core.info(`after throw: config: ${JSON.stringify(jiraConfig)}, jiraEndpoint: ${jiraConfig.jiraEndpoint}`);
+  core.info(`after throw: config: ${JSON.stringify(jiraConfig)}`);
 
   const githubToken = core.getInput("github-token", { required: true });
   const colReviewRequested = core.getInput(
@@ -66,11 +56,9 @@ const getArgs: () => ParsedResult | void = () => {
   const colMerged = core.getInput("column-to-move-to-when-merged");
   const colMergedDevTested = core.getInput("column-to-move-to-when-merged-to-be-dev-tested");
   const devTestedLabel = core.getInput("pr-label-to-be-dev-tested");
+  const searchString = core.getInput("search-string", {required: true});
 
-  const { jiraAccount, jiraEndpoint, jiraToken, jiraIssueId } = jiraConfig;
-
-  const jiraProject = jiraIssueId!.split(/-/g)[0];
-  const jiraIssueNumber = Number(jiraIssueId!.split(/-/g)[1]);
+  const { jiraAccount, jiraEndpoint, jiraToken } = jiraConfig;
 
   return {
     success: true,
@@ -82,12 +70,10 @@ const getArgs: () => ParsedResult | void = () => {
       columnToMoveToWhenMerged: colMerged,
       columnToMoveToWhenMergedToBeDevTested: colMergedDevTested,
       prLabelToBeDevTested: devTestedLabel,
+      searchString,
       jiraAccount,
       jiraEndpoint,
-      jiraIssueId,
       jiraToken,
-      jiraProject,
-      jiraIssueNumber,
       jiraTokenEncoded: Buffer.from(`${jiraAccount}:${jiraToken}`).toString(
         "base64"
       ),
@@ -97,3 +83,16 @@ const getArgs: () => ParsedResult | void = () => {
 };
 
 export { getArgs };
+
+/**
+ * Parse a string and returns an array of unique Jira issues 
+ */
+const parseString = (str: string): string[] => {
+  const issueIdRegEx = /([a-zA-Z0-9]+-[0-9]+)/g
+  const matches = str.match(issueIdRegEx)
+  const strings = matches?.map(m => String(m)) ?? []
+
+  return [...new Set(strings)]
+}
+
+export { parseString };

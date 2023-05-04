@@ -1,32 +1,33 @@
 import { JiraClient } from "./jira";
-import { HandleTransitionParams } from "./interfaces";
-import { warning, info } from "@actions/core";
+import { HandleTransitionParams, TransitionParams } from "./interfaces";
+import * as core from "@actions/core";
 import { countReset } from "console";
+import { parseString } from "./get-args";
 
 const transitionIssue = async ({
   jiraTokenEncoded,
   jiraEndpoint,
   jiraIssueId,
   colName
-}: HandleTransitionParams) => {
+}: TransitionParams) => {
   const jira = new JiraClient(jiraTokenEncoded);
 
   const issueDetail = await jira.request(
     `${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`
   );
 
-  info(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
-  info(`detail: ${issueDetail}`);
+  core.debug(`url: ${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}`);
+  core.debug(`detail: ${issueDetail}`);
 
   const {
     fields: {
       status: { name }
     }
   } = issueDetail;
-  info(`name: ${name}, colName: ${colName}`);
+  core.info(`name: ${name}, colName: ${colName}`);
 
   if (name === colName) {
-    warning(`
+    core.warning(`
         The issue ${jiraIssueId} is already in status ${colName}.
         Action will exit without doing anything.  
       `);
@@ -35,7 +36,7 @@ const transitionIssue = async ({
       `${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}/transitions`
     );
 
-    info(`transitions: ${JSON.stringify(availableTransitions)}`)
+    core.debug(`transitions: ${JSON.stringify(availableTransitions)}`)
 
     const transitionId = availableTransitions.transitions?.find(
       (t: any) => t.name === colName
@@ -47,7 +48,7 @@ const transitionIssue = async ({
       Check all of the transitions' rules, conditions of yourr project's workflow.
       See more: https://confluence.atlassian.com/adminjiraserver073/working-with-workflows-861253510.html
     `);
-    info(`Changing issue ${jiraIssueId} to ${colName}`);
+    core.info(`Changing issue ${jiraIssueId} to ${colName}`);
     await jira.request(
       `${jiraEndpoint}/rest/api/3/issue/${jiraIssueId}/transitions`,
       "POST",
@@ -58,23 +59,19 @@ const transitionIssue = async ({
 
 const handleTransitionIssue = async ({
   resolveTicketIdsFunc,
-  branchName,
+  searchString,
   ...rest
 }: HandleTransitionParams) => {
-  if (resolveTicketIdsFunc && branchName) {
-    const result = await resolveTicketIdsFunc(branchName);
-    if (Array.isArray(result)) {
-      result.forEach(ticketId => {
-        transitionIssue({ ...rest, jiraIssueId: ticketId });
-      });
-    } else if (typeof result === "string") {
-      transitionIssue({ ...rest, jiraIssueId: result });
-    } else {
-      transitionIssue({ ...rest });
-    }
-  } else {
-    transitionIssue({ ...rest });
+  const resolverFunc = resolveTicketIdsFunc ?? parseString;
+  const issues = await resolverFunc(searchString);
+
+  if (issues.length == 0) {
+    core.info('No issues detected in PR details')
   }
+
+  issues.forEach(jiraIssueId => {
+    transitionIssue({ ...rest, jiraIssueId });
+  });
 };
 
 export { handleTransitionIssue };
