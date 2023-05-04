@@ -68,6 +68,8 @@ const handleTransitionIssue = async ({
   const resolverFunc = resolveTicketIdsFunc ?? parseString;
   const issues = await resolverFunc(searchString);
 
+  core.info(`Issues ${issues}`)
+
   if (issues.length == 0) {
     core.info('No issues detected in PR details')
   }
