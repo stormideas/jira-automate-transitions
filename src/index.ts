@@ -35,7 +35,8 @@ async function run() {
           } = payload as Webhooks.WebhookPayloadPullRequest;
 
           switch (payload.action) {
-            case "review_requested": {
+            case "review_requested":
+            case "edited": {
               await handleTransitionIssue({
                 ...parsedInput,
                 colName: parsedInput.columnToMoveToWhenReviewRequested
