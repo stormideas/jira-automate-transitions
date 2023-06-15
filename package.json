@@ -10,11 +10,13 @@
     "@types/node": "^18.15.11",
     "@types/node-fetch": "^2.5.5",
     "@types/yaml": "^1.2.0",
+    "jira-client": "^8.2.2",
     "node-fetch": "^2.6.0",
     "typescript": "^5.0.4",
     "yaml": "^1.7.2"
   },
   "devDependencies": {
+    "@types/jira-client": "^7.1.6",
     "@zeit/ncc": "^0.21.1",
     "dotenv": "^8.2.0",
     "husky": "^4.2.3"
