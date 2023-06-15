@@ -1,0 +1,33 @@
+issueRegEx: "ST-[0-9]+"
+connection:
+  host: stormideas.atlassian.net
+  username: "michal.dabrowski@getstoryteller.com"
+
+transitions:
+  -
+    from: 
+      - "In Progress"
+    to: "In Review"
+    on:
+      - pull_request:
+          targetBranches:
+            - develop
+          actions:
+          - open
+          - reopen
+          - synchronize
+          draft: false
+  -
+    from: 
+      - "In Review"
+    to: "To Test"
+    on:
+      - pull_request:
+          targetBranches:
+            - develop
+          actions:
+          - closed 
+          draft: false
+          merged: true
+
+

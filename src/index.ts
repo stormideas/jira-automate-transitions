@@ -1,10 +1,25 @@
-import * as core from "@actions/core"
-import * as github from "@actions/github"
+import { CiContext, affectedIssues, getCiContext } from "./github-context"
+import { Config, loadConfig } from "./load-config"
+import * as Core from "@actions/core"
 import "console"
 
-function run() {
-  const ctx = JSON.stringify( github.context)
-  console.log(`MAD branch ${ctx}`)
+async function run()  {
+  const configPath = Core.getInput("configPath", { required: true , trimWhitespace:true }) 
+
+  const ciCtx = getCiContext()
+
+  console.log(JSON.stringify(ciCtx, null, 4))
+  
+  
+  const config = await loadConfig(configPath)
+  const issuesAffected =  affectedIssues(ciCtx,config.issueKeyRegexp)
+  console.log("AFFECTED issues")
+  for( const i in issuesAffected){
+    console.log(` ${i}`)
+  }
+
 }
 
-run()
+run().then(()=>{
+  console.log("done")
+})

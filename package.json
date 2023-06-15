@@ -11,12 +11,14 @@
     "@types/node-fetch": "^2.5.5",
     "@types/yaml": "^1.2.0",
     "jira-client": "^8.2.2",
+    "js-yaml": "^4.1.0",
     "node-fetch": "^2.6.0",
     "typescript": "^5.0.4",
     "yaml": "^1.7.2"
   },
   "devDependencies": {
     "@types/jira-client": "^7.1.6",
+    "@types/js-yaml": "^4.0.5",
     "@zeit/ncc": "^0.21.1",
     "dotenv": "^8.2.0",
     "husky": "^4.2.3"
@@ -26,7 +28,7 @@
     "watch": "ncc build --watch --minify src/index.ts",
     "build": "ncc build src/index.ts",
     "run": "ncc run src/index.ts",
-    "playground": "ncc run src/playground/index.ts"
+    "playground": "ncc run src/playground/play.ts"
   },
   "husky": {
     "hooks": {}
