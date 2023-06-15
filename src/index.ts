@@ -1,8 +1,10 @@
 import * as core from "@actions/core"
+import * as github from "@actions/github"
 import "console"
 
 function run() {
-  console.log(`MAD branch ${github}`)
+  const ctx = JSON.stringify( github.context)
+  console.log(`MAD branch ${ctx}`)
 }
 
 run()
