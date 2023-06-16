@@ -1,6 +1,5 @@
 import "@actions/core"
 import { context as ghCtx } from "@actions/github"
-import { WebhookPayload } from "@actions/github/lib/interfaces"
 import "console"
 
 
@@ -13,31 +12,36 @@ interface CiContext {
     isMerged?: boolean
     isDraft?: boolean,
     title: string,
-    body: string
+    body: string,
+    labels: Array<string>
 }
 function affectedIssues(ciCtx: CiContext, pattern: string): Set<string> {
     let ret = new Set<string>()
+    if(pattern === undefined){
+        throw new Error("pattern to find issue key must be provided")
+    }
+    console.log(`Issue pattern ${pattern}`)
     const regexp = new RegExp(pattern, "ig") as RegExp
 
     const srcBranch = ciCtx.sourceBranch
     if (srcBranch) {
+        console.log(`Branch ${srcBranch}`)
         let matches = srcBranch.matchAll(regexp)
         for (const key in matches) {
             ret.add(key)
         }
     }
     const title = ciCtx.title
+    console.log(`Title ${title}`)
     let matches = title.matchAll(regexp)
-    for (const key in matches) {
-        ret.add(key)
+    for (const key of matches) {
+        ret.add(key[0].toUpperCase())
     }
 
     return ret
 }
 
 function getCiContext(): CiContext {
-    // console.log("Github context")
-    // console.log(JSON.stringify(ghCtx,null,4))
     const payload = ghCtx.payload
 
     const event = ghCtx.eventName
@@ -49,6 +53,10 @@ function getCiContext(): CiContext {
     const title = payload.pull_request.title
     const body = payload.pull_request.body
 
+    const labelsObj = payload.pull_request.labels ?? new Array<any>
+    
+    const labels = labelsObj.map( (v: { name: string })  => v.name.toLowerCase())
+
     return {
         event: event,
         targetBranch: targetBranch,
@@ -57,7 +65,8 @@ function getCiContext(): CiContext {
         isMerged: isMerged,
         isDraft: isDraft,
         title: title,
-        body: body
+        body: body,
+        labels: labels
     }
 
 }

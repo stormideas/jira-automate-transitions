@@ -18,7 +18,7 @@ type ConnectionCfg = {
 type Config = {
     connection: ConnectionCfg,
     rules: Array<TransitionRule>,
-    issueKeyRegexp: string
+    issueKeyRegExp: string
 }
 
 export { loadConfig, ConnectionCfg, Config }
