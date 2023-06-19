@@ -17,7 +17,7 @@ config yaml is a yaml document describling connection params and transition rule
 see sample yaml config file
 
 ```yaml
-# regexp pattern to use for issue key matching (matched case insensitive)
+# regexp pattern to use for issue key matching (matched case insensitive) search will be done against pr TITLE and branch name. All found issues will be affected
 issueKeyRegExp: "ST-[0-9]+"
 
 connection:
@@ -81,8 +81,5 @@ rules:
           - closed
         draft: false
         merged: true
-
-
-
 
 ```
