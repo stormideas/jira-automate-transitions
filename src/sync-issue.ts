@@ -105,7 +105,9 @@ function anyCriteriaMatches(ciCtx: CiContext, rule: TransitionRule): boolean {
     console.log(`merge satisfied ${mergedSatisfied}`)
     const match = actionSatisfied && draftSatisfied && mergedSatisfied && targetBranchSatisfied && withLabelSatisfied && withoutLabelSatisfied
     console.log(`Found match : ${match}`)
-    console.log(`Transition : ${rule.transition}`)
+    if (match) {
+        console.log(`Transition : ${rule.transition}`)
+    } 
     return match
 }
 
