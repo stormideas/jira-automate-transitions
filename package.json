@@ -14,6 +14,7 @@
     "js-yaml": "^4.1.0",
     "node-fetch": "^2.6.0",
     "typescript": "^5.0.4",
+    "wildcard-match": "^5.1.2",
     "yaml": "^1.7.2"
   },
   "devDependencies": {

@@ -4,6 +4,7 @@ import { JiraApiOptions } from 'jira-client';
 import "console"
 import { Config } from './load-config';
 import { CiContext } from './github-context';
+import wcmatch from "wildcard-match"
 
 
 async function syncIssue(issueKey: string, ciCtx: CiContext, config: Config, jiraToken?: string) {
@@ -85,7 +86,6 @@ function anyCriteriaMatches(ciCtx: CiContext, rule: TransitionRule): boolean {
     } else {
         console.log(JSON.stringify(criteria))
     }
-    const branchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.includes(ciCtx.targetBranch)
     const actionSatisfied = criteria.actions === undefined || criteria.actions.includes(ciCtx.action)
 
     const draftSatisfied = criteria.draft === undefined || criteria.draft === ciCtx.isDraft
@@ -96,8 +96,16 @@ function anyCriteriaMatches(ciCtx: CiContext, rule: TransitionRule): boolean {
 
     const withoutLabelSatisfied = criteria.withoutLabel === undefined || criteria.withoutLabel.every(v => !ciCtx.labels.includes(v.toLowerCase()))
 
-    const targetBranchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.includes(ciCtx.targetBranch)
-    console.log(`branch satisfied ${branchSatisfied}`)
+    const targetBranchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.some( pattern => {
+        const isMatch  = wcmatch(pattern)
+        const target = ciCtx.targetBranch
+        const matched = isMatch(target)
+        console.log(`checking pattern ${isMatch.pattern} agains target ${target} `)
+        console.log(`matched: ${matched} `)
+        ciCtx.targetBranch
+        return matched
+    })
+    console.log(`targetBranch satisfied ${targetBranchSatisfied}`)
     console.log(`action satisfied ${actionSatisfied}`)
     console.log(`withLabel satisfied ${withLabelSatisfied}`)
     console.log(`withoutLabel satisfied ${withoutLabelSatisfied}`)

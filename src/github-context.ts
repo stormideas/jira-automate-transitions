@@ -20,15 +20,15 @@ function affectedIssues(ciCtx: CiContext, pattern: string): Set<string> {
     if(pattern === undefined){
         throw new Error("pattern to find issue key must be provided")
     }
-    console.log(`Issue pattern ${pattern}`)
+    console.log(`Issue pattern "${pattern}"`)
     const regexp = new RegExp(pattern, "ig") as RegExp
 
     const srcBranch = ciCtx.sourceBranch
     if (srcBranch) {
         console.log(`Branch ${srcBranch}`)
         let matches = srcBranch.matchAll(regexp)
-        for (const key in matches) {
-            ret.add(key)
+        for (const key of matches) {
+            ret.add(key[0].toUpperCase())
         }
     }
     const title = ciCtx.title

@@ -44869,7 +44869,179 @@ Promise.map = function (promises, fn, options, _filter) {
 
 
 /***/ }),
-/* 724 */,
+/* 724 */
+/***/ (function(module) {
+
+"use strict";
+
+
+/**
+ * Escapes a character if it has a special meaning in regular expressions
+ * and returns the character as is if it doesn't
+ */
+function escapeRegExpChar(char) {
+    if (char === '-' ||
+        char === '^' ||
+        char === '$' ||
+        char === '+' ||
+        char === '.' ||
+        char === '(' ||
+        char === ')' ||
+        char === '|' ||
+        char === '[' ||
+        char === ']' ||
+        char === '{' ||
+        char === '}' ||
+        char === '*' ||
+        char === '?' ||
+        char === '\\') {
+        return "\\" + char;
+    }
+    else {
+        return char;
+    }
+}
+/**
+ * Escapes all characters in a given string that have a special meaning in regular expressions
+ */
+function escapeRegExpString(str) {
+    var result = '';
+    for (var i = 0; i < str.length; i++) {
+        result += escapeRegExpChar(str[i]);
+    }
+    return result;
+}
+/**
+ * Transforms one or more glob patterns into a RegExp pattern
+ */
+function transform(pattern, separator) {
+    if (separator === void 0) { separator = true; }
+    if (Array.isArray(pattern)) {
+        var regExpPatterns = pattern.map(function (p) { return "^" + transform(p, separator) + "$"; });
+        return "(?:" + regExpPatterns.join('|') + ")";
+    }
+    var separatorSplitter = '';
+    var separatorMatcher = '';
+    var wildcard = '.';
+    if (separator === true) {
+        separatorSplitter = '/';
+        separatorMatcher = '[/\\\\]';
+        wildcard = '[^/\\\\]';
+    }
+    else if (separator) {
+        separatorSplitter = separator;
+        separatorMatcher = escapeRegExpString(separatorSplitter);
+        if (separatorMatcher.length > 1) {
+            separatorMatcher = "(?:" + separatorMatcher + ")";
+            wildcard = "((?!" + separatorMatcher + ").)";
+        }
+        else {
+            wildcard = "[^" + separatorMatcher + "]";
+        }
+    }
+    var requiredSeparator = separator ? separatorMatcher + "+?" : '';
+    var optionalSeparator = separator ? separatorMatcher + "*?" : '';
+    var segments = separator ? pattern.split(separatorSplitter) : [pattern];
+    var result = '';
+    for (var s = 0; s < segments.length; s++) {
+        var segment = segments[s];
+        var nextSegment = segments[s + 1];
+        var currentSeparator = '';
+        if (!segment && s > 0) {
+            continue;
+        }
+        if (separator) {
+            if (s === segments.length - 1) {
+                currentSeparator = optionalSeparator;
+            }
+            else if (nextSegment !== '**') {
+                currentSeparator = requiredSeparator;
+            }
+            else {
+                currentSeparator = '';
+            }
+        }
+        if (separator && segment === '**') {
+            if (currentSeparator) {
+                result += s === 0 ? '' : currentSeparator;
+                result += "(?:" + wildcard + "*?" + currentSeparator + ")*?";
+            }
+            continue;
+        }
+        for (var c = 0; c < segment.length; c++) {
+            var char = segment[c];
+            if (char === '\\') {
+                if (c < segment.length - 1) {
+                    result += escapeRegExpChar(segment[c + 1]);
+                    c++;
+                }
+            }
+            else if (char === '?') {
+                result += wildcard;
+            }
+            else if (char === '*') {
+                result += wildcard + "*?";
+            }
+            else {
+                result += escapeRegExpChar(char);
+            }
+        }
+        result += currentSeparator;
+    }
+    return result;
+}
+
+function isMatch(regexp, sample) {
+    if (typeof sample !== 'string') {
+        throw new TypeError("Sample must be a string, but " + typeof sample + " given");
+    }
+    return regexp.test(sample);
+}
+/**
+ * Compiles one or more glob patterns into a RegExp and returns an isMatch function.
+ * The isMatch function takes a sample string as its only argument and returns `true`
+ * if the string matches the pattern(s).
+ *
+ * ```js
+ * wildcardMatch('src/*.js')('src/index.js') //=> true
+ * ```
+ *
+ * ```js
+ * const isMatch = wildcardMatch('*.example.com', '.')
+ * isMatch('foo.example.com') //=> true
+ * isMatch('foo.bar.com') //=> false
+ * ```
+ */
+function wildcardMatch(pattern, options) {
+    if (typeof pattern !== 'string' && !Array.isArray(pattern)) {
+        throw new TypeError("The first argument must be a single pattern string or an array of patterns, but " + typeof pattern + " given");
+    }
+    if (typeof options === 'string' || typeof options === 'boolean') {
+        options = { separator: options };
+    }
+    if (arguments.length === 2 &&
+        !(typeof options === 'undefined' ||
+            (typeof options === 'object' && options !== null && !Array.isArray(options)))) {
+        throw new TypeError("The second argument must be an options object or a string/boolean separator, but " + typeof options + " given");
+    }
+    options = options || {};
+    if (options.separator === '\\') {
+        throw new Error('\\ is not a valid separator because it is used for escaping. Try setting the separator to `true` instead');
+    }
+    var regexpPattern = transform(pattern, options.separator);
+    var regexp = new RegExp("^" + regexpPattern + "$", options.flags);
+    var fn = isMatch.bind(null, regexp);
+    fn.options = options;
+    fn.pattern = pattern;
+    fn.regexp = regexp;
+    return fn;
+}
+
+module.exports = wildcardMatch;
+//# sourceMappingURL=index.js.map
+
+
+/***/ }),
 /* 725 */,
 /* 726 */
 /***/ (function(module, __unusedexports, __webpack_require__) {
@@ -73103,14 +73275,14 @@ function affectedIssues(ciCtx, pattern) {
     if (pattern === undefined) {
         throw new Error("pattern to find issue key must be provided");
     }
-    console.log(`Issue pattern ${pattern}`);
+    console.log(`Issue pattern "${pattern}"`);
     const regexp = new RegExp(pattern, "ig");
     const srcBranch = ciCtx.sourceBranch;
     if (srcBranch) {
         console.log(`Branch ${srcBranch}`);
         let matches = srcBranch.matchAll(regexp);
-        for (const key in matches) {
-            ret.add(key);
+        for (const key of matches) {
+            ret.add(key[0].toUpperCase());
         }
     }
     const title = ciCtx.title;
@@ -73177,6 +73349,10 @@ function loadConfig(configPath) {
 // EXTERNAL MODULE: ./node_modules/jira-client/lib/jira.js
 var jira = __webpack_require__(717);
 
+// EXTERNAL MODULE: ./node_modules/wildcard-match/build/index.js
+var build = __webpack_require__(724);
+var build_default = /*#__PURE__*/__webpack_require__.n(build);
+
 // CONCATENATED MODULE: ./src/sync-issue.ts
 var sync_issue_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
@@ -73187,6 +73363,7 @@ var sync_issue_awaiter = (undefined && undefined.__awaiter) || function (thisArg
         step((generator = generator.apply(thisArg, _arguments || [])).next());
     });
 };
+
 
 
 function syncIssue(issueKey, ciCtx, config, jiraToken) {
@@ -73259,14 +73436,21 @@ function anyCriteriaMatches(ciCtx, rule) {
     else {
         console.log(JSON.stringify(criteria));
     }
-    const branchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.includes(ciCtx.targetBranch);
     const actionSatisfied = criteria.actions === undefined || criteria.actions.includes(ciCtx.action);
     const draftSatisfied = criteria.draft === undefined || criteria.draft === ciCtx.isDraft;
     const mergedSatisfied = criteria.merged === undefined || criteria.merged === ciCtx.isMerged;
     const withLabelSatisfied = criteria.withLabel === undefined || criteria.withLabel.every(v => ciCtx.labels.includes(v.toLowerCase()));
     const withoutLabelSatisfied = criteria.withoutLabel === undefined || criteria.withoutLabel.every(v => !ciCtx.labels.includes(v.toLowerCase()));
-    const targetBranchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.includes(ciCtx.targetBranch);
-    console.log(`branch satisfied ${branchSatisfied}`);
+    const targetBranchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.some(pattern => {
+        const isMatch = build_default()(pattern);
+        const target = ciCtx.targetBranch;
+        const matched = isMatch(target);
+        console.log(`checking pattern ${isMatch.pattern} agains target ${target} `);
+        console.log(`matched: ${matched} `);
+        ciCtx.targetBranch;
+        return matched;
+    });
+    console.log(`targetBranch satisfied ${targetBranchSatisfied}`);
     console.log(`action satisfied ${actionSatisfied}`);
     console.log(`withLabel satisfied ${withLabelSatisfied}`);
     console.log(`withoutLabel satisfied ${withoutLabelSatisfied}`);
