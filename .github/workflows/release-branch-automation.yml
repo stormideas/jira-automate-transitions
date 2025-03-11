@@ -38,11 +38,23 @@ jobs:
           VERSION=${BRANCH_NAME#release/}
           echo "VERSION=$VERSION" >> $GITHUB_ENV
           echo "Extracted version: $VERSION"
+          
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "Current version in package.json: $CURRENT_VERSION"
       
       - name: Update version in package.json
+        id: update_version
         run: |
-          npm version ${{ env.VERSION }} --no-git-tag-version
-          echo "Updated package.json version to ${{ env.VERSION }}"
+          if [ "${{ env.VERSION }}" == "${{ env.CURRENT_VERSION }}" ]; then
+            echo "Version in package.json already matches branch version (${{ env.VERSION }}). Skipping update."
+            echo "VERSION_CHANGED=false" >> $GITHUB_ENV
+          else
+            npm version ${{ env.VERSION }} --no-git-tag-version
+            echo "Updated package.json version from ${{ env.CURRENT_VERSION }} to ${{ env.VERSION }}"
+            echo "VERSION_CHANGED=true" >> $GITHUB_ENV
+          fi
       
       - name: Run tests with coverage
         id: test
@@ -112,20 +124,54 @@ jobs:
             fi
           fi
           
+          # Add version information
+          echo "" >> test-summary.md
+          echo "## Version Information" >> test-summary.md
+          if [ "${{ env.VERSION_CHANGED }}" == "true" ]; then
+            echo "✅ Version updated from ${{ env.CURRENT_VERSION }} to ${{ env.VERSION }}" >> test-summary.md
+          else
+            echo "ℹ️ Version unchanged: ${{ env.VERSION }} (already set in package.json)" >> test-summary.md
+          fi
+          
       - name: Add test results to PR
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           header: test-results
           path: test-summary.md
       
+      - name: Check for changes
+        id: check_changes
+        run: |
+          # Check if there are any changes to commit
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+            echo "Changes detected that need to be committed."
+          else
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+            echo "No changes detected. Nothing to commit."
+          fi
+      
       - name: Commit changes
-        if: steps.test.outcome == 'success'
+        if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'true'
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git add package.json package-lock.json dist/
-          git commit -m "chore: bump version to ${{ env.VERSION }} and update build"
+          
+          # Create appropriate commit message based on what changed
+          if [ "${{ env.VERSION_CHANGED }}" == "true" ]; then
+            COMMIT_MSG="chore: bump version to ${{ env.VERSION }} and update build"
+          else
+            COMMIT_MSG="chore: update build artifacts"
+          fi
+          
+          git commit -m "$COMMIT_MSG"
           git push
+          
+      - name: No changes to commit
+        if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'false'
+        run: |
+          echo "Tests passed successfully, but no changes were detected. Nothing to commit."
           
       - name: Fail workflow if tests failed
         if: steps.test.outcome != 'success'
