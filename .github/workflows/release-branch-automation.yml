@@ -139,29 +139,47 @@ jobs:
           header: test-results
           path: test-summary.md
       
-      - name: Check for changes
+      - name: Check for relevant changes
         id: check_changes
         run: |
-          # Check if there are any changes to commit
-          if [[ -n "$(git status --porcelain)" ]]; then
+          # Check specifically for changes to package.json, package-lock.json, and dist/
+          PACKAGE_CHANGES=$(git status --porcelain package.json package-lock.json 2>/dev/null || echo "")
+          DIST_CHANGES=$(git status --porcelain dist/ 2>/dev/null || echo "")
+          
+          # Combine the changes
+          RELEVANT_CHANGES="${PACKAGE_CHANGES}${DIST_CHANGES}"
+          
+          if [[ -n "$RELEVANT_CHANGES" ]]; then
             echo "HAS_CHANGES=true" >> $GITHUB_ENV
-            echo "Changes detected that need to be committed."
+            echo "Relevant changes detected that need to be committed."
           else
             echo "HAS_CHANGES=false" >> $GITHUB_ENV
-            echo "No changes detected. Nothing to commit."
+            echo "No relevant changes detected. Nothing to commit."
           fi
+          
+          # Get all changes for reporting
+          ALL_CHANGES=$(git status --porcelain)
           
           # Update the test summary with change information
           echo "" >> test-summary.md
           echo "## Changes Detected" >> test-summary.md
-          if [[ -n "$(git status --porcelain)" ]]; then
-            echo "✅ Changes detected that will be committed." >> test-summary.md
+          
+          if [[ -n "$RELEVANT_CHANGES" ]]; then
+            echo "✅ Relevant changes detected that will be committed:" >> test-summary.md
             echo "" >> test-summary.md
             echo "```" >> test-summary.md
-            git status --porcelain >> test-summary.md
+            echo "$RELEVANT_CHANGES" >> test-summary.md
             echo "```" >> test-summary.md
           else
-            echo "ℹ️ No changes detected. Nothing to commit." >> test-summary.md
+            echo "ℹ️ No relevant changes detected. Nothing to commit." >> test-summary.md
+            
+            if [[ -n "$ALL_CHANGES" ]]; then
+              echo "" >> test-summary.md
+              echo "Other untracked or modified files (not being committed):" >> test-summary.md
+              echo "```" >> test-summary.md
+              echo "$ALL_CHANGES" >> test-summary.md
+              echo "```" >> test-summary.md
+            fi
           fi
           
       - name: Update PR comment with change information
@@ -175,7 +193,19 @@ jobs:
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git add package.json package-lock.json dist/
+          
+          # Only add files that actually have changes
+          if git status --porcelain package.json | grep -q .; then
+            git add package.json
+          fi
+          
+          if git status --porcelain package-lock.json | grep -q .; then
+            git add package-lock.json
+          fi
+          
+          if git status --porcelain dist/ | grep -q .; then
+            git add dist/
+          fi
           
           # Create appropriate commit message based on what changed
           if [ "${{ env.VERSION_CHANGED }}" == "true" ]; then
@@ -184,13 +214,19 @@ jobs:
             COMMIT_MSG="chore: update build artifacts"
           fi
           
-          git commit -m "$COMMIT_MSG"
-          git push
+          # Only commit if there are staged changes
+          if [[ -n "$(git diff --cached --name-only)" ]]; then
+            git commit -m "$COMMIT_MSG"
+            git push
+            echo "Changes committed and pushed successfully."
+          else
+            echo "No changes were staged for commit. Skipping commit."
+          fi
           
       - name: Success - No changes to commit
         if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'false'
         run: |
-          echo "Tests passed successfully, but no changes were detected. Nothing to commit."
+          echo "Tests passed successfully, but no relevant changes were detected. Nothing to commit."
           # This is still a successful workflow run
           exit 0
           
