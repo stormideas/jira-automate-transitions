@@ -73464,7 +73464,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                 owner,
                 repo,
                 issue_number: ciCtx.prNumber,
-                milestone: milestone.id
+                milestone: milestone.number
             });
             console.log(`Successfully updated PR with milestone: ${milestoneName}`);
         }
