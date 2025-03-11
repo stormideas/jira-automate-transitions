@@ -4,5 +4,8 @@
     "target": "ES2015",
     "allowSyntheticDefaultImports": true,
     "moduleResolution": "Node",
-  }
+    "esModuleInterop": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
 }

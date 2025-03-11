@@ -2,6 +2,70 @@
 
 This document provides information for developers working on the Jira Ticket Transitioner action.
 
+## Unit Tests with Jest
+
+The project uses Jest for unit testing and code coverage. Unit tests are located in the `tests/unit` directory.
+
+### Running Unit Tests
+
+To run all unit tests:
+
+```bash
+npm test
+```
+
+To run tests in watch mode (useful during development):
+
+```bash
+npm run test:watch
+```
+
+To run tests with coverage reporting:
+
+```bash
+npm run test:coverage
+```
+
+This will generate a coverage report in the `coverage` directory and display a summary in the terminal.
+
+### Writing Unit Tests
+
+When adding new features or modifying existing ones, please add or update the corresponding unit tests. Tests should be placed in the `tests/unit` directory with a filename that matches the source file being tested, with a `.test.ts` extension.
+
+For example:
+- Source file: `src/load-config.ts`
+- Test file: `tests/unit/load-config.test.ts`
+
+### Mocking Dependencies
+
+Jest is configured to automatically mock external dependencies. When testing modules that depend on external services (like JIRA or GitHub), you should create mock implementations of those services.
+
+Example of mocking the JIRA client:
+
+```typescript
+// Create mock functions
+const mockGetIssue = jest.fn().mockResolvedValue({
+  fields: {
+    status: { name: 'Open' },
+    fixVersions: []
+  }
+});
+
+// Mock the module
+jest.mock('jira-client', () => {
+  return function() {
+    return {
+      getIssue: mockGetIssue,
+      // Add other methods as needed
+    };
+  };
+});
+```
+
+### Code Coverage
+
+The project aims for high code coverage. Current coverage thresholds are set in `jest.config.js`. When adding new code, please ensure that it's properly covered by tests.
+
 ## JIRA Integration Tests
 
 The `test` directory contains tests for validating the JIRA API integration and milestone synchronization feature.
