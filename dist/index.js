@@ -55424,13 +55424,17 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
             host: conCfg.host,
             username: conCfg.username,
             password: (_b = (_a = conCfg.password) !== null && _a !== void 0 ? _a : jiraToken) !== null && _b !== void 0 ? _b : process.env.JIRA_API_TOKEN,
-            strictSSL: true
+            strictSSL: true,
         };
         console.log("Jira Using connection: ");
         console.log(JSON.stringify(options, null, 2));
         const api = new JiraApi(options);
         console.log(`Syncing issue ${issueKey}`);
-        const issueData = yield api.getIssue(issueKey, ["status", "fixVersions", "project"]);
+        const issueData = yield api.getIssue(issueKey, [
+            "status",
+            "fixVersions",
+            "project",
+        ]);
         const allowedTransitions = (yield api.listTransitions(issueKey)).transitions;
         const currentState = issueData.fields.status.name;
         console.log(`Current ${issueKey} state [${currentState}]`);
@@ -55448,7 +55452,10 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
             console.log("Not found proper transition rule");
         }
         // Sync milestone if enabled and we have PR information
-        if (config.syncMilestones === true && ciCtx.prNumber && ciCtx.repo && ((_c = config.github) === null || _c === void 0 ? void 0 : _c.token)) {
+        if (config.syncMilestones === true &&
+            ciCtx.prNumber &&
+            ciCtx.repo &&
+            ((_c = config.github) === null || _c === void 0 ? void 0 : _c.token)) {
             yield syncMilestone(issueData, ciCtx, config.github.token, conCfg);
         }
     });
@@ -55470,7 +55477,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
         const milestoneName = jiraRelease.name;
         const releaseDate = jiraRelease.releaseDate; // Format: YYYY-MM-DD
         const jiraReleaseUrl = `https://${conCfg.host}/projects/${issueData.fields.project.key}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
-        console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
+        console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || "No date"}`);
         try {
             // Initialize GitHub client with the newer API
             const octokit = Object(github.getOctokit)(githubToken);
@@ -55481,10 +55488,10 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
             const { data: milestones } = yield octokit.rest.issues.listMilestones({
                 owner,
                 repo,
-                state: 'all'
+                state: "all",
             });
             console.log(`Found ${milestones.length} milestones`);
-            milestone = milestones.find(m => m.title === milestoneName);
+            milestone = milestones.find((m) => m.title === milestoneName);
             if (milestone) {
                 console.log(`Found existing milestone: ${milestoneName} with ID: ${milestone.number}`);
             }
@@ -55512,11 +55519,25 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                     owner,
                     repo,
                     issue_number: ciCtx.prNumber,
-                    milestone: milestone.number
+                    milestone: milestone.number,
                 });
                 console.log(`Update response status: ${status}`);
                 if (status >= 200 && status < 300) {
                     console.log(`Successfully updated PR with milestone: ${milestoneName}`);
+                    console.log("Verifying PR update...");
+                    const { data: updatedPr } = yield octokit.rest.pulls.get({
+                        owner,
+                        repo,
+                        pull_number: ciCtx.prNumber,
+                    });
+                    if (updatedPr.milestone &&
+                        updatedPr.milestone.number === milestone.number) {
+                        console.log("✅ Verification successful: PR has the correct milestone assigned");
+                    }
+                    else {
+                        console.log("❌ Verification failed: PR does not have the expected milestone");
+                        console.log(`Current milestone: ${updatedPr.milestone ? updatedPr.milestone.title : "None"}`);
+                    }
                 }
                 else {
                     console.error(`Failed to update PR with milestone. Status: ${status}`);
@@ -55534,7 +55555,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                     const { data: verifiedMilestone } = yield octokit.rest.issues.getMilestone({
                         owner,
                         repo,
-                        milestone_number: milestone.number
+                        milestone_number: milestone.number,
                     });
                     console.log(`Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`);
                     // Try updating the PR again with explicit parameters
@@ -55544,7 +55565,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                         issue_number: ciCtx.prNumber,
                         milestone: verifiedMilestone.number,
                         title: ciCtx.title,
-                        body: ciCtx.body // Preserve existing body
+                        body: ciCtx.body, // Preserve existing body
                     });
                     console.log(`Alternative update completed with status: ${altStatus}`);
                 }
