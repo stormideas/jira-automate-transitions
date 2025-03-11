@@ -73304,7 +73304,12 @@ function getCiContext() {
     const sourceBranch = payload.pull_request.head.ref;
     const title = payload.pull_request.title;
     const body = payload.pull_request.body;
-    const labelsObj = (_a = payload.pull_request.labels) !== null && _a !== void 0 ? _a : new Array;
+    const prNumber = payload.pull_request.number;
+    const repo = {
+        owner: payload.repository.owner.login,
+        name: payload.repository.name
+    };
+    const labelsObj = (_a = payload.pull_request.labels) !== null && _a !== void 0 ? _a : new Array();
     const labels = labelsObj.map((v) => v.name.toLowerCase());
     return {
         event: event,
@@ -73315,7 +73320,9 @@ function getCiContext() {
         isDraft: isDraft,
         title: title,
         body: body,
-        labels: labels
+        labels: labels,
+        prNumber: prNumber,
+        repo: repo
     };
 }
 
@@ -73346,9 +73353,6 @@ function loadConfig(configPath) {
 }
 
 
-// EXTERNAL MODULE: ./node_modules/jira-client/lib/jira.js
-var jira = __webpack_require__(717);
-
 // EXTERNAL MODULE: ./node_modules/wildcard-match/build/index.js
 var build = __webpack_require__(724);
 var build_default = /*#__PURE__*/__webpack_require__.n(build);
@@ -73366,24 +73370,26 @@ var sync_issue_awaiter = (undefined && undefined.__awaiter) || function (thisArg
 
 
 
+// Use require for jira-client to avoid TypeScript issues
+const JiraApi = __webpack_require__(717);
 function syncIssue(issueKey, ciCtx, config, jiraToken) {
-    var _a, _b;
+    var _a, _b, _c;
     return sync_issue_awaiter(this, void 0, void 0, function* () {
         const conCfg = config.connection;
         const rules = config.rules;
         let options = {
-            //critical without that post operations do not work
             protocol: "https",
             apiVersion: "2",
             host: conCfg.host,
             username: conCfg.username,
-            password: (_b = (_a = conCfg.passsword) !== null && _a !== void 0 ? _a : jiraToken) !== null && _b !== void 0 ? _b : process.env.JIRA_API_TOKEN
+            password: (_b = (_a = conCfg.password) !== null && _a !== void 0 ? _a : jiraToken) !== null && _b !== void 0 ? _b : process.env.JIRA_API_TOKEN,
+            strictSSL: true
         };
         console.log("Jira Using connection: ");
         console.log(JSON.stringify(options, null, 2));
-        const api = new jira(options);
+        const api = new JiraApi(options);
         console.log(`Syncing issue ${issueKey}`);
-        const issueData = yield api.getIssue(issueKey, ["status"]);
+        const issueData = yield api.getIssue(issueKey, ["status", "fixVersions"]);
         const allowedTransitions = (yield api.listTransitions(issueKey)).transitions;
         const currentState = issueData.fields.status.name;
         console.log(`Current ${issueKey} state [${currentState}]`);
@@ -73400,6 +73406,71 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
         else {
             console.log("Not found proper transition rule");
         }
+        // Sync milestone if enabled and we have PR information
+        if (config.syncMilestones === true && ciCtx.prNumber && ciCtx.repo && ((_c = config.github) === null || _c === void 0 ? void 0 : _c.token)) {
+            yield syncMilestone(issueData, ciCtx, config.github.token, conCfg);
+        }
+    });
+}
+function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
+    return sync_issue_awaiter(this, void 0, void 0, function* () {
+        if (!ciCtx.prNumber || !ciCtx.repo) {
+            console.log("Missing PR number or repository information. Cannot sync milestone.");
+            return;
+        }
+        // Get fix versions from JIRA issue
+        const fixVersions = issueData.fields.fixVersions || [];
+        if (fixVersions.length === 0) {
+            console.log("No fix versions found for this issue. Skipping milestone sync.");
+            return;
+        }
+        // Use the first fix version as the milestone
+        const jiraRelease = fixVersions[0];
+        const milestoneName = jiraRelease.name;
+        const releaseDate = jiraRelease.releaseDate; // Format: YYYY-MM-DD
+        const jiraReleaseUrl = `https://${conCfg.host}/projects/${jiraRelease.project}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
+        console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
+        try {
+            // Initialize GitHub client
+            const octokit = new github.GitHub(githubToken);
+            const { owner, name: repo } = ciCtx.repo;
+            // Check if milestone exists
+            let milestone = null;
+            const milestones = yield octokit.issues.listMilestonesForRepo({
+                owner,
+                repo,
+                state: 'all'
+            });
+            milestone = milestones.data.find(m => m.title === milestoneName);
+            // Create milestone if it doesn't exist
+            if (!milestone) {
+                console.log(`Creating new milestone: ${milestoneName}`);
+                const milestoneData = {
+                    owner,
+                    repo,
+                    title: milestoneName,
+                    description: `JIRA Release: ${jiraReleaseUrl}`,
+                };
+                // Add due date if available
+                if (releaseDate) {
+                    milestoneData.due_on = `${releaseDate}T00:00:00Z`;
+                }
+                const newMilestone = yield octokit.issues.createMilestone(milestoneData);
+                milestone = newMilestone.data;
+            }
+            // Update PR with milestone
+            console.log(`Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName}`);
+            yield octokit.issues.update({
+                owner,
+                repo,
+                issue_number: ciCtx.prNumber,
+                milestone: milestone.number
+            });
+            console.log(`Successfully updated PR with milestone: ${milestoneName}`);
+        }
+        catch (error) {
+            console.error(`Error syncing milestone: ${error.message}`);
+        }
     });
 }
 function findTransition(currentState, allowedTransitions, rules, ciCtx) {
@@ -73409,7 +73480,9 @@ function findTransition(currentState, allowedTransitions, rules, ciCtx) {
     for (const rule of rules) {
         console.log("Checking rule");
         console.log(JSON.stringify(rule, null, 2));
-        const inCorrectState = rule.from.map(v => v.toLowerCase()).includes(currentState.toLowerCase());
+        const inCorrectState = rule.from
+            .map((v) => v.toLowerCase())
+            .includes(currentState.toLowerCase());
         console.log(`Current state ${currentState} satisfied ${inCorrectState}`);
         if (!inCorrectState) {
             continue;
@@ -73439,24 +73512,32 @@ function anyCriteriaMatches(ciCtx, rule) {
     const actionSatisfied = criteria.actions === undefined || criteria.actions.includes(ciCtx.action);
     const draftSatisfied = criteria.draft === undefined || criteria.draft === ciCtx.isDraft;
     const mergedSatisfied = criteria.merged === undefined || criteria.merged === ciCtx.isMerged;
-    const withLabelSatisfied = criteria.withLabel === undefined || criteria.withLabel.every(v => ciCtx.labels.includes(v.toLowerCase()));
-    const withoutLabelSatisfied = criteria.withoutLabel === undefined || criteria.withoutLabel.every(v => !ciCtx.labels.includes(v.toLowerCase()));
-    const targetBranchSatisfied = criteria.targetBranches === undefined || criteria.targetBranches.some(pattern => {
-        const isMatch = build_default()(pattern);
-        const target = ciCtx.targetBranch;
-        const matched = isMatch(target);
-        console.log(`checking pattern ${isMatch.pattern} agains target ${target} `);
-        console.log(`matched: ${matched} `);
-        ciCtx.targetBranch;
-        return matched;
-    });
+    const withLabelSatisfied = criteria.withLabel === undefined ||
+        criteria.withLabel.every((v) => ciCtx.labels.includes(v.toLowerCase()));
+    const withoutLabelSatisfied = criteria.withoutLabel === undefined ||
+        criteria.withoutLabel.every((v) => !ciCtx.labels.includes(v.toLowerCase()));
+    const targetBranchSatisfied = criteria.targetBranches === undefined ||
+        criteria.targetBranches.some((pattern) => {
+            const isMatch = build_default()(pattern);
+            const target = ciCtx.targetBranch;
+            const matched = isMatch(target);
+            console.log(`checking pattern ${isMatch.pattern} agains target ${target} `);
+            console.log(`matched: ${matched} `);
+            ciCtx.targetBranch;
+            return matched;
+        });
     console.log(`targetBranch satisfied ${targetBranchSatisfied}`);
     console.log(`action satisfied ${actionSatisfied}`);
     console.log(`withLabel satisfied ${withLabelSatisfied}`);
     console.log(`withoutLabel satisfied ${withoutLabelSatisfied}`);
     console.log(`draft satisfied ${draftSatisfied}`);
     console.log(`merge satisfied ${mergedSatisfied}`);
-    const match = actionSatisfied && draftSatisfied && mergedSatisfied && targetBranchSatisfied && withLabelSatisfied && withoutLabelSatisfied;
+    const match = actionSatisfied &&
+        draftSatisfied &&
+        mergedSatisfied &&
+        targetBranchSatisfied &&
+        withLabelSatisfied &&
+        withoutLabelSatisfied;
     console.log(`Found match : ${match}`);
     if (match) {
         console.log(`Transition : ${rule.transition}`);
@@ -73464,7 +73545,7 @@ function anyCriteriaMatches(ciCtx, rule) {
     return match;
 }
 function findTransitionIdByName(trs, name) {
-    const transiton = trs.find(value => {
+    const transiton = trs.find((value) => {
         return value.name.toLowerCase() == name.toLowerCase();
     });
     return transiton;
@@ -73488,12 +73569,34 @@ var src_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _argu
 
 function run() {
     return src_awaiter(this, void 0, void 0, function* () {
-        const configPath = Object(core.getInput)("configPath", { required: true, trimWhitespace: true });
-        let jiraToken = Object(core.getInput)("jiraToken", { required: false, trimWhitespace: true });
+        const configPath = Object(core.getInput)("configPath", {
+            required: true,
+            trimWhitespace: true,
+        });
+        let jiraToken = Object(core.getInput)("jiraToken", {
+            required: false,
+            trimWhitespace: true,
+        });
         if (jiraToken.length == 0) {
             jiraToken = undefined;
         }
+        let githubToken = Object(core.getInput)("githubToken", {
+            required: false,
+            trimWhitespace: true,
+        });
+        if (githubToken.length == 0) {
+            githubToken = undefined;
+        }
         const config = yield loadConfig(configPath);
+        // Set GitHub token from input or config
+        if (githubToken && (!config.github || !config.github.token)) {
+            if (!config.github) {
+                config.github = { token: githubToken };
+            }
+            else {
+                config.github.token = githubToken;
+            }
+        }
         const ciCtx = getCiContext();
         console.log("GitubContext:");
         console.log(JSON.stringify(ciCtx, null, 4));

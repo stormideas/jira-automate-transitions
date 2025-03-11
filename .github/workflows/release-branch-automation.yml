@@ -1,0 +1,103 @@
+name: Release Branch Automation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
+
+jobs:
+  process-release-branch:
+    if: startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Extract version from branch name
+        id: extract_version
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          VERSION=${BRANCH_NAME#release/}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Extracted version: $VERSION"
+      
+      - name: Update version in package.json
+        run: |
+          npm version ${{ env.VERSION }} --no-git-tag-version
+          echo "Updated package.json version to ${{ env.VERSION }}"
+      
+      - name: Run tests with coverage
+        id: test
+        run: npm run test:coverage
+        continue-on-error: true
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Generate test summary
+        id: test_summary
+        run: |
+          # Install jq if needed
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+          
+          echo "## Test Results" > test-summary.md
+          
+          if [ "${{ steps.test.outcome }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> test-summary.md
+          else
+            echo "❌ Tests failed! Please check the logs for details." >> test-summary.md
+          fi
+          
+          echo "" >> test-summary.md
+          
+          if [ -f "coverage/coverage-summary.json" ]; then
+            echo "## Code Coverage Summary" >> test-summary.md
+            echo '```' >> test-summary.md
+            cat coverage/coverage-summary.json | jq '{total: .total, lines: .total.lines, statements: .total.statements, functions: .total.functions, branches: .total.branches}' >> test-summary.md
+            echo '```' >> test-summary.md
+          else
+            echo "## Code Coverage" >> test-summary.md
+            echo "No coverage report generated due to test failures." >> test-summary.md
+          fi
+          
+      - name: Add test results to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          path: test-summary.md
+      
+      - name: Commit changes
+        if: steps.test.outcome == 'success'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add package.json package-lock.json dist/
+          git commit -m "chore: bump version to ${{ env.VERSION }} and update build"
+          git push
+          
+      - name: Fail workflow if tests failed
+        if: steps.test.outcome != 'success'
+        run: |
+          echo "Tests failed! Not committing changes."
+          exit 1 
