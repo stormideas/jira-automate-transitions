@@ -251,7 +251,7 @@ function findTransitionIdByName(trs: any, name: string): any {
 type TransitionRule = {
   from: Array<string>;
   transition: string;
-  on: [event: Criteria];
+  on: { [event: string]: Criteria };
 };
 
 interface Criteria {
