@@ -150,6 +150,25 @@ jobs:
             echo "HAS_CHANGES=false" >> $GITHUB_ENV
             echo "No changes detected. Nothing to commit."
           fi
+          
+          # Update the test summary with change information
+          echo "" >> test-summary.md
+          echo "## Changes Detected" >> test-summary.md
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "✅ Changes detected that will be committed." >> test-summary.md
+            echo "" >> test-summary.md
+            echo "```" >> test-summary.md
+            git status --porcelain >> test-summary.md
+            echo "```" >> test-summary.md
+          else
+            echo "ℹ️ No changes detected. Nothing to commit." >> test-summary.md
+          fi
+          
+      - name: Update PR comment with change information
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          path: test-summary.md
       
       - name: Commit changes
         if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'true'
@@ -168,12 +187,14 @@ jobs:
           git commit -m "$COMMIT_MSG"
           git push
           
-      - name: No changes to commit
+      - name: Success - No changes to commit
         if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'false'
         run: |
           echo "Tests passed successfully, but no changes were detected. Nothing to commit."
+          # This is still a successful workflow run
+          exit 0
           
-      - name: Fail workflow if tests failed
+      - name: Fail if tests failed
         if: steps.test.outcome != 'success'
         run: |
           echo "Tests failed! Not committing changes."
