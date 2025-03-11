@@ -1,24 +1,27 @@
-import * as fs from "fs/promises"
-import * as jsyaml from "js-yaml"
-import { TransitionRule } from "./sync-issue"
+import * as fs from "fs/promises";
+import * as jsyaml from "js-yaml";
+import { TransitionRule } from "./sync-issue";
 
-async function loadConfig(configPath:string) : Promise<Config>{
-    
-     const yaml = jsyaml.load(await fs.readFile(configPath, "utf8")) as Config; 
-     return yaml
-
+async function loadConfig(configPath: string): Promise<Config> {
+  const yaml = jsyaml.load(await fs.readFile(configPath, "utf8")) as Config;
+  return yaml;
 }
 type ConnectionCfg = {
-    host: string,
-    username: string
-    passsword?: string
-}
+  host: string;
+  username: string;
+  passsword?: string;
+};
 
+type GitHubConnectionCfg = {
+  token?: string;
+};
 
 type Config = {
-    connection: ConnectionCfg,
-    rules: Array<TransitionRule>,
-    issueKeyRegExp: string
-}
+  connection: ConnectionCfg;
+  github?: GitHubConnectionCfg;
+  rules: Array<TransitionRule>;
+  issueKeyRegExp: string;
+  syncMilestones?: boolean;
+};
 
-export { loadConfig, ConnectionCfg, Config }
+export { loadConfig, ConnectionCfg, GitHubConnectionCfg, Config };

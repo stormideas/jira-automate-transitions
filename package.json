@@ -1,6 +1,6 @@
 {
   "name": "jira-automate-transition",
-  "version": "1.0.7-beta",
+  "version": "3.0.0",
   "description": "Github Action to automate Jira ticket transition",
   "dependencies": {
     "@actions/core": "^1.2.3",
@@ -22,27 +22,24 @@
     "@types/js-yaml": "^4.0.5",
     "@zeit/ncc": "^0.21.1",
     "dotenv": "^8.2.0",
-    "husky": "^4.2.3"
+    "ts-node": "^10.9.1"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "ncc build --watch --minify src/index.ts",
     "build": "ncc build src/index.ts",
     "run": "ncc run src/index.ts",
-    "playground": "ncc run src/playground/play.ts"
-  },
-  "husky": {
-    "hooks": {}
+    "test:jira": "ts-node test/test-jira-integration.ts",
+    "test:milestone": "ts-node test/test-milestone-sync.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuanddd/jira-transition-request-change.git"
+    "url": "git+https://github.com/stormideas/jira-automate-transitions.git"
   },
   "keywords": [],
-  "author": "Dao Tuan <heryhudson@gmail.com>",
+  "author": "Dave Branagh-Miscampbell <dave@getstoryteller.com>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/tuanddd/jira-transition-request-change/issues"
+    "url": "https://github.com/stormideas/jira-automate-transitions/issues"
   },
-  "homepage": "https://github.com/tuanddd/jira-transition-request-change#readme"
+  "homepage": "https://github.com/stormideas/jira-automate-transitions#readme"
 }

@@ -3,7 +3,9 @@
 This action can move Jira issue to col of choice by event (e.g: move to IN REVIEW col when author requests review, move to IN PROGRESS if reviewer requests changes, move to QA if pr is merged).
 
 # Inputs
-* configPath - path to yaml file providing connection and transition rules confgiuration
+* configPath - path to yaml file providing connection and transition rules configuration
+* jiraToken - API token to use with jira connection (alternative to setting it in the config file)
+* githubToken - GitHub token to use for GitHub API operations (required for milestone synchronization)
 
 # Envionment variables
 * JIRA_API_TOKEN - api token to use with jira connection - if no password is provided in yaml file this one will be used.
@@ -27,6 +29,15 @@ connection:
   username: "jira-test@getstoryteller.com"
   # password or token for jira - note that if you don't want to keep whole config as file secret you can use jiraToken action parameter
   password: "***"
+
+# GitHub connection configuration (optional)
+github:
+  # GitHub token for API operations (optional if provided via githubToken input)
+  token: "***"
+
+# Enable milestone synchronization (optional, default: false)
+syncMilestones: true
+
 # rules are list of condition to be met in order to apply transition to the ticket
 rules:
   # this rule apply only if issue is in selected for development or in progress state
@@ -83,3 +94,21 @@ rules:
         merged: true
 
 ```
+
+# Milestone Synchronization
+
+When `syncMilestones` is enabled in the config, the action will:
+
+1. Check if the JIRA issue has a fix version (release) assigned
+2. Look for a corresponding GitHub milestone with the same name
+3. Create the milestone if it doesn't exist, including the release date from JIRA
+4. Add the PR to the milestone
+
+This ensures that GitHub PRs are properly linked to their corresponding JIRA releases, making it easier to track what changes are included in each release.
+
+# Documentation
+
+- [Development Guide](DEVELOPMENT.md) - Information for developers working on this action
+- [Configuration Guide](docs/configuration.md) - Detailed configuration options
+- [Progress](docs/progress.md) - Implementation progress and planned features
+- [Documentation Hub](docs/index.md) - Complete documentation
