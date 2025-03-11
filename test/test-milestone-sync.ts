@@ -70,7 +70,7 @@ async function runTest() {
     const jira = new JiraApi(jiraOptions);
     
     console.log(`Fetching issue: ${issueKey}`);
-    const issueData = await jira.getIssue(issueKey, ["status", "fixVersions", "summary"]);
+    const issueData = await jira.getIssue(issueKey, ["status", "fixVersions", "summary", "project"]);
     
     console.log(`Issue found: ${issueData.key} - ${issueData.fields.summary}`);
     console.log(`Current status: ${issueData.fields.status.name}`);

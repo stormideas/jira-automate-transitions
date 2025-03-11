@@ -31,7 +31,7 @@ async function syncIssue(
   const api = new JiraApi(options);
 
   console.log(`Syncing issue ${issueKey}`);
-  const issueData = await api.getIssue(issueKey, ["status", "fixVersions"]);
+  const issueData = await api.getIssue(issueKey, ["status", "fixVersions", "project"]);
 
   const allowedTransitions = (await api.listTransitions(issueKey)).transitions;
   const currentState = issueData.fields.status.name;
@@ -88,7 +88,7 @@ async function syncMilestone(
   const jiraRelease = fixVersions[0];
   const milestoneName = jiraRelease.name;
   const releaseDate = jiraRelease.releaseDate; // Format: YYYY-MM-DD
-  const jiraReleaseUrl = `https://${conCfg.host}/projects/${jiraRelease.project}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
+  const jiraReleaseUrl = `https://${conCfg.host}/projects/${issueData.fields.project.key}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
 
   console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
 
@@ -132,7 +132,7 @@ async function syncMilestone(
       owner,
       repo,
       issue_number: ciCtx.prNumber,
-      milestone: milestone.number
+      milestone: milestone.id
     });
 
     console.log(`Successfully updated PR with milestone: ${milestoneName}`);
