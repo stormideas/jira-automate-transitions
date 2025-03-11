@@ -171,3 +171,34 @@ This will compile the TypeScript code and bundle it into a single file in the `d
 2. Run tests to validate your changes
 3. Build the action
 4. Commit and push your changes
+
+## Release Process
+
+The repository includes a GitHub Actions workflow that automates the release process. This workflow is triggered when a release branch is opened against the main branch.
+
+### Release Branch Automation
+
+The workflow performs the following steps:
+
+1. **Version Bumping**: Automatically extracts the version number from the release branch name (e.g., `release/4.0.0` → `4.0.0`) and updates it in `package.json`.
+
+2. **Test Execution**: Runs all tests with code coverage reporting.
+
+3. **Test Results**: Posts test results and code coverage statistics as a comment on the PR.
+
+4. **Build Process**: Runs `npm run build` to generate the production build.
+
+5. **Commit Changes**: If tests pass, automatically commits the version bump and build changes to the release branch.
+
+### How to Use the Release Workflow
+
+1. Create a new branch with the naming pattern `release/X.Y.Z` (where X.Y.Z is the semantic version)
+2. Open a pull request from this branch to the main branch
+3. The workflow will automatically run and update your PR
+
+### Requirements
+
+- The release branch name must follow the pattern `release/X.Y.Z` (e.g., `release/4.0.0`)
+- Tests must pass for the workflow to commit changes
+
+If tests fail, the workflow will post the failure details to the PR but will not commit any changes.

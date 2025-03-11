@@ -1,0 +1,237 @@
+name: Release Branch Automation
+
+on:
+  pull_request:
+    branches:
+      - main
+    types: [opened, reopened, synchronize]
+
+jobs:
+  process-release-branch:
+    if: startsWith(github.head_ref, 'release/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref }}
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Extract version from branch name
+        id: extract_version
+        run: |
+          BRANCH_NAME="${{ github.head_ref }}"
+          VERSION=${BRANCH_NAME#release/}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "Extracted version: $VERSION"
+          
+          # Get current version from package.json
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          echo "CURRENT_VERSION=$CURRENT_VERSION" >> $GITHUB_ENV
+          echo "Current version in package.json: $CURRENT_VERSION"
+      
+      - name: Update version in package.json
+        id: update_version
+        run: |
+          if [ "${{ env.VERSION }}" == "${{ env.CURRENT_VERSION }}" ]; then
+            echo "Version in package.json already matches branch version (${{ env.VERSION }}). Skipping update."
+            echo "VERSION_CHANGED=false" >> $GITHUB_ENV
+          else
+            npm version ${{ env.VERSION }} --no-git-tag-version
+            echo "Updated package.json version from ${{ env.CURRENT_VERSION }} to ${{ env.VERSION }}"
+            echo "VERSION_CHANGED=true" >> $GITHUB_ENV
+          fi
+      
+      - name: Run tests with coverage
+        id: test
+        run: npm run test:coverage
+        continue-on-error: true
+      
+      - name: Build project
+        run: npm run build
+      
+      - name: Generate test summary
+        id: test_summary
+        run: |
+          # Install jq if needed
+          if ! command -v jq &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y jq
+          fi
+          
+          echo "## Test Results" > test-summary.md
+          
+          if [ "${{ steps.test.outcome }}" == "success" ]; then
+            echo "✅ All tests passed successfully!" >> test-summary.md
+          else
+            echo "❌ Tests failed! Please check the logs for details." >> test-summary.md
+          fi
+          
+          echo "" >> test-summary.md
+          
+          if [ -f "coverage/coverage-summary.json" ]; then
+            echo "## Code Coverage Summary" >> test-summary.md
+            echo '```json' >> test-summary.md
+            cat coverage/coverage-summary.json >> test-summary.md
+            echo '```' >> test-summary.md
+            
+            # Extract and format coverage metrics for better readability
+            echo "" >> test-summary.md
+            echo "### Coverage Metrics" >> test-summary.md
+            echo "" >> test-summary.md
+            
+            # Extract total coverage percentages
+            STATEMENTS=$(jq -r '.total.statements.pct' coverage/coverage-summary.json)
+            BRANCHES=$(jq -r '.total.branches.pct' coverage/coverage-summary.json)
+            FUNCTIONS=$(jq -r '.total.functions.pct' coverage/coverage-summary.json)
+            LINES=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+            
+            echo "| Metric | Coverage |" >> test-summary.md
+            echo "| ------ | -------- |" >> test-summary.md
+            echo "| Statements | ${STATEMENTS}% |" >> test-summary.md
+            echo "| Branches | ${BRANCHES}% |" >> test-summary.md
+            echo "| Functions | ${FUNCTIONS}% |" >> test-summary.md
+            echo "| Lines | ${LINES}% |" >> test-summary.md
+          else
+            echo "## Code Coverage" >> test-summary.md
+            echo "No coverage report generated due to test failures or configuration issues." >> test-summary.md
+            
+            # Check if coverage directory exists
+            if [ -d "coverage" ]; then
+              echo "" >> test-summary.md
+              echo "Coverage directory exists but no coverage-summary.json file was found." >> test-summary.md
+              echo "Available files in coverage directory:" >> test-summary.md
+              echo '```' >> test-summary.md
+              ls -la coverage/ >> test-summary.md
+              echo '```' >> test-summary.md
+            else
+              echo "" >> test-summary.md
+              echo "Coverage directory was not created. This might indicate a configuration issue." >> test-summary.md
+            fi
+          fi
+          
+          # Add version information
+          echo "" >> test-summary.md
+          echo "## Version Information" >> test-summary.md
+          if [ "${{ env.VERSION_CHANGED }}" == "true" ]; then
+            echo "✅ Version updated from ${{ env.CURRENT_VERSION }} to ${{ env.VERSION }}" >> test-summary.md
+          else
+            echo "ℹ️ Version unchanged: ${{ env.VERSION }} (already set in package.json)" >> test-summary.md
+          fi
+          
+      - name: Add test results to PR
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          path: test-summary.md
+      
+      - name: Check for relevant changes
+        id: check_changes
+        run: |
+          # Check specifically for changes to package.json, package-lock.json, and dist/
+          PACKAGE_CHANGES=$(git status --porcelain package.json package-lock.json 2>/dev/null || echo "")
+          DIST_CHANGES=$(git status --porcelain dist/ 2>/dev/null || echo "")
+          
+          # Combine the changes
+          RELEVANT_CHANGES="${PACKAGE_CHANGES}${DIST_CHANGES}"
+          
+          if [[ -n "$RELEVANT_CHANGES" ]]; then
+            echo "HAS_CHANGES=true" >> $GITHUB_ENV
+            echo "Relevant changes detected that need to be committed."
+          else
+            echo "HAS_CHANGES=false" >> $GITHUB_ENV
+            echo "No relevant changes detected. Nothing to commit."
+          fi
+          
+          # Get all changes for reporting
+          ALL_CHANGES=$(git status --porcelain)
+          
+          # Update the test summary with change information
+          echo "" >> test-summary.md
+          echo "## Changes Detected" >> test-summary.md
+          
+          if [[ -n "$RELEVANT_CHANGES" ]]; then
+            echo "✅ Relevant changes detected that will be committed:" >> test-summary.md
+            echo "" >> test-summary.md
+            echo "```" >> test-summary.md
+            echo "$RELEVANT_CHANGES" >> test-summary.md
+            echo "```" >> test-summary.md
+          else
+            echo "ℹ️ No relevant changes detected. Nothing to commit." >> test-summary.md
+            
+            if [[ -n "$ALL_CHANGES" ]]; then
+              echo "" >> test-summary.md
+              echo "Other untracked or modified files (not being committed):" >> test-summary.md
+              echo "```" >> test-summary.md
+              echo "$ALL_CHANGES" >> test-summary.md
+              echo "```" >> test-summary.md
+            fi
+          fi
+          
+      - name: Update PR comment with change information
+        uses: marocchino/sticky-pull-request-comment@v2
+        with:
+          header: test-results
+          path: test-summary.md
+      
+      - name: Commit changes
+        if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'true'
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          
+          # Only add files that actually have changes
+          if git status --porcelain package.json | grep -q .; then
+            git add package.json
+          fi
+          
+          if git status --porcelain package-lock.json | grep -q .; then
+            git add package-lock.json
+          fi
+          
+          if git status --porcelain dist/ | grep -q .; then
+            git add dist/
+          fi
+          
+          # Create appropriate commit message based on what changed
+          if [ "${{ env.VERSION_CHANGED }}" == "true" ]; then
+            COMMIT_MSG="chore: bump version to ${{ env.VERSION }} and update build"
+          else
+            COMMIT_MSG="chore: update build artifacts"
+          fi
+          
+          # Only commit if there are staged changes
+          if [[ -n "$(git diff --cached --name-only)" ]]; then
+            git commit -m "$COMMIT_MSG"
+            git push
+            echo "Changes committed and pushed successfully."
+          else
+            echo "No changes were staged for commit. Skipping commit."
+          fi
+          
+      - name: Success - No changes to commit
+        if: steps.test.outcome == 'success' && env.HAS_CHANGES == 'false'
+        run: |
+          echo "Tests passed successfully, but no relevant changes were detected. Nothing to commit."
+          # This is still a successful workflow run
+          exit 0
+          
+      - name: Fail if tests failed
+        if: steps.test.outcome != 'success'
+        run: |
+          echo "Tests failed! Not committing changes."
+          exit 1 

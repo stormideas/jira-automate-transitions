@@ -12,7 +12,7 @@ module.exports = {
     '!src/**/__tests__/**',
   ],
   coverageDirectory: 'coverage',
-  coverageReporters: ['text', 'lcov', 'clover'],
+  coverageReporters: ['text', 'lcov', 'clover', 'json-summary'],
   coverageThreshold: {
     global: {
       branches: 50,
