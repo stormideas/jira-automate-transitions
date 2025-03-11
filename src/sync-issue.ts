@@ -132,7 +132,7 @@ async function syncMilestone(
       owner,
       repo,
       issue_number: ciCtx.prNumber,
-      milestone: milestone.id
+      milestone: milestone.number
     });
 
     console.log(`Successfully updated PR with milestone: ${milestoneName}`);
