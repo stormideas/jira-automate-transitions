@@ -93,19 +93,25 @@ async function syncMilestone(
   console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
 
   try {
-    // Initialize GitHub client
-    const octokit = new github.GitHub(githubToken);
+    // Initialize GitHub client with the newer API
+    const octokit = github.getOctokit(githubToken);
     const { owner, name: repo } = ciCtx.repo;
 
     // Check if milestone exists
+    console.log(`Checking if milestone "${milestoneName}" exists in ${owner}/${repo}`);
     let milestone = null;
-    const milestones = await octokit.issues.listMilestonesForRepo({
+    const { data: milestones } = await octokit.rest.issues.listMilestones({
       owner,
       repo,
       state: 'all'
     });
 
-    milestone = milestones.data.find(m => m.title === milestoneName);
+    console.log(`Found ${milestones.length} milestones`);
+    milestone = milestones.find(m => m.title === milestoneName);
+    
+    if (milestone) {
+      console.log(`Found existing milestone: ${milestoneName} with ID: ${milestone.number}`);
+    }
 
     // Create milestone if it doesn't exist
     if (!milestone) {
@@ -122,22 +128,66 @@ async function syncMilestone(
         milestoneData.due_on = `${releaseDate}T00:00:00Z`;
       }
 
-      const newMilestone = await octokit.issues.createMilestone(milestoneData);
-      milestone = newMilestone.data;
+      const { data: newMilestone } = await octokit.rest.issues.createMilestone(milestoneData);
+      milestone = newMilestone;
+      console.log(`Created new milestone with ID: ${milestone.number}`);
     }
 
     // Update PR with milestone
-    console.log(`Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName}`);
-    await octokit.issues.update({
-      owner,
-      repo,
-      issue_number: ciCtx.prNumber,
-      milestone: milestone.number
-    });
-
-    console.log(`Successfully updated PR with milestone: ${milestoneName}`);
+    console.log(`Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName} (ID: ${milestone.number})`);
+    
+    try {
+      const { status } = await octokit.rest.issues.update({
+        owner,
+        repo,
+        issue_number: ciCtx.prNumber,
+        milestone: milestone.number
+      });
+      
+      console.log(`Update response status: ${status}`);
+      if (status >= 200 && status < 300) {
+        console.log(`Successfully updated PR with milestone: ${milestoneName}`);
+      } else {
+        console.error(`Failed to update PR with milestone. Status: ${status}`);
+      }
+    } catch (updateError) {
+      console.error(`Error updating PR with milestone: ${updateError.message}`);
+      if (updateError.response) {
+        console.error(`Status: ${updateError.response.status}, Data: ${JSON.stringify(updateError.response.data)}`);
+      }
+      
+      // Try an alternative approach if the first one fails
+      console.log("Trying alternative approach to update PR...");
+      try {
+        // Verify the milestone exists and is valid
+        const { data: verifiedMilestone } = await octokit.rest.issues.getMilestone({
+          owner,
+          repo,
+          milestone_number: milestone.number
+        });
+        
+        console.log(`Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`);
+        
+        // Try updating the PR again with explicit parameters
+        const { status: altStatus } = await octokit.rest.issues.update({
+          owner,
+          repo,
+          issue_number: ciCtx.prNumber,
+          milestone: verifiedMilestone.number,
+          title: ciCtx.title,  // Preserve existing title
+          body: ciCtx.body     // Preserve existing body
+        });
+        
+        console.log(`Alternative update completed with status: ${altStatus}`);
+      } catch (altError) {
+        console.error(`Alternative approach also failed: ${altError.message}`);
+      }
+    }
   } catch (error) {
     console.error(`Error syncing milestone: ${error.message}`);
+    if (error.response) {
+      console.error(`Status: ${error.response.status}, Data: ${JSON.stringify(error.response.data)}`);
+    }
   }
 }
 
