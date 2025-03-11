@@ -1,6 +1,6 @@
 {
   "name": "jira-automate-transition",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Github Action to automate Jira ticket transition",
   "dependencies": {
     "@actions/core": "^1.2.3",
