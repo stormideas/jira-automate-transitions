@@ -73389,7 +73389,7 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
         console.log(JSON.stringify(options, null, 2));
         const api = new JiraApi(options);
         console.log(`Syncing issue ${issueKey}`);
-        const issueData = yield api.getIssue(issueKey, ["status", "fixVersions"]);
+        const issueData = yield api.getIssue(issueKey, ["status", "fixVersions", "project"]);
         const allowedTransitions = (yield api.listTransitions(issueKey)).transitions;
         const currentState = issueData.fields.status.name;
         console.log(`Current ${issueKey} state [${currentState}]`);
@@ -73428,7 +73428,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
         const jiraRelease = fixVersions[0];
         const milestoneName = jiraRelease.name;
         const releaseDate = jiraRelease.releaseDate; // Format: YYYY-MM-DD
-        const jiraReleaseUrl = `https://${conCfg.host}/projects/${jiraRelease.project}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
+        const jiraReleaseUrl = `https://${conCfg.host}/projects/${issueData.fields.project.key}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
         console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
         try {
             // Initialize GitHub client
@@ -73464,7 +73464,7 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                 owner,
                 repo,
                 issue_number: ciCtx.prNumber,
-                milestone: milestone.number
+                milestone: milestone.id
             });
             console.log(`Successfully updated PR with milestone: ${milestoneName}`);
         }
