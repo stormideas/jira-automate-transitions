@@ -73,12 +73,43 @@ jobs:
           
           if [ -f "coverage/coverage-summary.json" ]; then
             echo "## Code Coverage Summary" >> test-summary.md
+            echo '```json' >> test-summary.md
+            cat coverage/coverage-summary.json >> test-summary.md
             echo '```' >> test-summary.md
-            cat coverage/coverage-summary.json | jq '{total: .total, lines: .total.lines, statements: .total.statements, functions: .total.functions, branches: .total.branches}' >> test-summary.md
-            echo '```' >> test-summary.md
+            
+            # Extract and format coverage metrics for better readability
+            echo "" >> test-summary.md
+            echo "### Coverage Metrics" >> test-summary.md
+            echo "" >> test-summary.md
+            
+            # Extract total coverage percentages
+            STATEMENTS=$(jq -r '.total.statements.pct' coverage/coverage-summary.json)
+            BRANCHES=$(jq -r '.total.branches.pct' coverage/coverage-summary.json)
+            FUNCTIONS=$(jq -r '.total.functions.pct' coverage/coverage-summary.json)
+            LINES=$(jq -r '.total.lines.pct' coverage/coverage-summary.json)
+            
+            echo "| Metric | Coverage |" >> test-summary.md
+            echo "| ------ | -------- |" >> test-summary.md
+            echo "| Statements | ${STATEMENTS}% |" >> test-summary.md
+            echo "| Branches | ${BRANCHES}% |" >> test-summary.md
+            echo "| Functions | ${FUNCTIONS}% |" >> test-summary.md
+            echo "| Lines | ${LINES}% |" >> test-summary.md
           else
             echo "## Code Coverage" >> test-summary.md
-            echo "No coverage report generated due to test failures." >> test-summary.md
+            echo "No coverage report generated due to test failures or configuration issues." >> test-summary.md
+            
+            # Check if coverage directory exists
+            if [ -d "coverage" ]; then
+              echo "" >> test-summary.md
+              echo "Coverage directory exists but no coverage-summary.json file was found." >> test-summary.md
+              echo "Available files in coverage directory:" >> test-summary.md
+              echo '```' >> test-summary.md
+              ls -la coverage/ >> test-summary.md
+              echo '```' >> test-summary.md
+            else
+              echo "" >> test-summary.md
+              echo "Coverage directory was not created. This might indicate a configuration issue." >> test-summary.md
+            fi
           fi
           
       - name: Add test results to PR
