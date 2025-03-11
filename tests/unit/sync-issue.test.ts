@@ -107,7 +107,7 @@ describe('sync-issue', () => {
       await syncIssue(issueKey, ciCtx, config);
       
       // Assert
-      expect(mockGetIssue).toHaveBeenCalledWith('TEST-123', ['status', 'fixVersions']);
+      expect(mockGetIssue).toHaveBeenCalledWith('TEST-123', ['status', 'fixVersions', 'project']);
       expect(mockListTransitions).toHaveBeenCalledWith('TEST-123');
       
       // Check that transitionIssue was called with the correct parameters
@@ -155,7 +155,7 @@ describe('sync-issue', () => {
       await syncIssue(issueKey, ciCtx, config);
       
       // Assert
-      expect(mockGetIssue).toHaveBeenCalledWith('TEST-123', ['status', 'fixVersions']);
+      expect(mockGetIssue).toHaveBeenCalledWith('TEST-123', ['status', 'fixVersions', 'project']);
       expect(mockListTransitions).toHaveBeenCalledWith('TEST-123');
       expect(mockTransitionIssue).not.toHaveBeenCalled();
     });
