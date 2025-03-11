@@ -62,7 +62,7 @@ async function runTest() {
       apiVersion: "2",
       host: config.connection.host,
       username: config.connection.username,
-      password: config.connection.passsword ?? jiraToken,
+      password: config.connection.password ?? jiraToken,
       strictSSL: true
     };
     
@@ -70,7 +70,7 @@ async function runTest() {
     const jira = new JiraApi(jiraOptions);
     
     console.log(`Fetching issue: ${issueKey}`);
-    const issueData = await jira.getIssue(issueKey, ["status", "fixVersions"]);
+    const issueData = await jira.getIssue(issueKey, ["status", "fixVersions", "summary"]);
     
     console.log(`Issue found: ${issueData.key} - ${issueData.fields.summary}`);
     console.log(`Current status: ${issueData.fields.status.name}`);

@@ -3,9 +3,9 @@ issueKeyRegExp: "[A-Z]+-[0-9]+"
 
 connection:
   # Replace with your JIRA host
-  host: "your-company.atlassian.net"
+  host: "stormideas.atlassian.net"
   # Replace with your JIRA username (email)
-  username: "your-email@example.com"
+  username: "jira-test@getstoryteller.com"
   # Password will be provided via JIRA_API_TOKEN environment variable
 
 # GitHub connection configuration

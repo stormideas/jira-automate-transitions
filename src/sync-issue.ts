@@ -1,6 +1,6 @@
 import * as Github from "@actions/core";
 import "console";
-import { Config } from "./load-config";
+import { Config, ConnectionCfg } from "./load-config";
 import { CiContext } from "./github-context";
 import wcmatch from "wildcard-match";
 import * as github from "@actions/github";
@@ -22,7 +22,7 @@ async function syncIssue(
     apiVersion: "2",
     host: conCfg.host,
     username: conCfg.username,
-    password: conCfg.passsword ?? jiraToken ?? process.env.JIRA_API_TOKEN,
+    password: conCfg.password ?? jiraToken ?? process.env.JIRA_API_TOKEN,
     strictSSL: true
   };
   console.log("Jira Using connection: ");
@@ -62,14 +62,15 @@ async function syncIssue(
 
   // Sync milestone if enabled and we have PR information
   if (config.syncMilestones === true && ciCtx.prNumber && ciCtx.repo && config.github?.token) {
-    await syncMilestone(issueData, ciCtx, config.github.token);
+    await syncMilestone(issueData, ciCtx, config.github.token, conCfg);
   }
 }
 
 async function syncMilestone(
   issueData: any,
   ciCtx: CiContext,
-  githubToken: string
+  githubToken: string,
+  conCfg: ConnectionCfg
 ) {
   if (!ciCtx.prNumber || !ciCtx.repo) {
     console.log("Missing PR number or repository information. Cannot sync milestone.");
@@ -87,6 +88,7 @@ async function syncMilestone(
   const jiraRelease = fixVersions[0];
   const milestoneName = jiraRelease.name;
   const releaseDate = jiraRelease.releaseDate; // Format: YYYY-MM-DD
+  const jiraReleaseUrl = `https://${conCfg.host}/projects/${jiraRelease.project}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
 
   console.log(`Found JIRA release: ${milestoneName} with date: ${releaseDate || 'No date'}`);
 
@@ -112,7 +114,7 @@ async function syncMilestone(
         owner,
         repo,
         title: milestoneName,
-        description: `JIRA Release: ${milestoneName}`,
+        description: `JIRA Release: ${jiraReleaseUrl}`,
       };
 
       // Add due date if available

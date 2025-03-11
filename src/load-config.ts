@@ -9,7 +9,7 @@ async function loadConfig(configPath: string): Promise<Config> {
 type ConnectionCfg = {
   host: string;
   username: string;
-  passsword?: string;
+  password?: string;
 };
 
 type GitHubConnectionCfg = {
