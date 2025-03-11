@@ -1,6 +1,6 @@
 name: Jira Ticket Transitioner Action
-author: Tuan Dao (heryhudson@gmail.com)
-description: This action can update Jira issue status by event
+author: Michał Dąbrowski (michal.dabrowski@getstoryteller.com)
+description: This action can update Jira issue status by event and synchronize GitHub milestones with JIRA releases
 
 branding:
   icon: repeat
@@ -10,33 +10,14 @@ runs:
   using: "node16"
   main: "./dist/index.js"
 inputs:
-  github-token:
-    description: github token
+  configPath:
+    description: Config providing jira connection and transitions rules
     required: true
-  search-string:
-    description: Custom string where to search for Jira issues
-    required: true
-  column-to-move-to-when-review-requested:
-    description: case-sensitive
-    required: true
-  column-to-move-to-when-changes-requested:
-    description: case-sensitive
-    required: true
-  column-to-move-to-when-merged:
-    description: case-sensitive
-    required: true
-  column-to-move-to-when-merged-to-be-dev-tested:
-    description: case-sensitive
-    required: true
-  pr-label-to-be-dev-tested:
-    description: label to be dev tested
-    required: true
-  jira-endpoint:
-    description: jira endpoint
+  jiraToken:
+    description: "Api token for jira. If config contains password it takes precedence.
+     If no username is set in config.yaml nor token provided as param env.JIRA_API_TOKEN will be used"
     required: false
-  jira-account:
-    description: jira account
-    required: false
-  jira-token:
-    description: jira token
+  githubToken:
+    description: "GitHub token for API operations. Required for milestone synchronization.
+     If not provided, the action will try to use the token from the config file or GITHUB_TOKEN environment variable."
     required: false

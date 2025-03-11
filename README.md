@@ -3,65 +3,112 @@
 This action can move Jira issue to col of choice by event (e.g: move to IN REVIEW col when author requests review, move to IN PROGRESS if reviewer requests changes, move to QA if pr is merged).
 
 # Inputs
+* configPath - path to yaml file providing connection and transition rules configuration
+* jiraToken - API token to use with jira connection (alternative to setting it in the config file)
+* githubToken - GitHub token to use for GitHub API operations (required for milestone synchronization)
 
-- `github-token`
-
-  - **Required**
-  - Usually it can be found at `${{ secrets.GITHUB_TOKEN }}`, see [this link](https://help.github.com/en/actions/configuring-and-managing-workflows/authenticating-with-the-github_token) for more info
-
-- `column-to-move-to-when-review-requested`
-  - **Required**
-  - Case-sensitive, status of an issue
-  - If issue can not be moved or the status is not found, simply do nothing
-- `column-to-move-to-when-changes-requested`
-  - **Required**
-  - Case-sensitive, status of an issue
-  - If issue can not be moved or the status is not found, simply do nothing
-- `column-to-move-to-when-merged`
-  - _Optional_
-  - Case-sensitive, status of an issue
-  - If issue can not be moved or the status is not found or not provided, simply do nothing
-- `jira-endpoint`:
-  - _Optional_ (**required** when not using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login))
-  - See [Jira Rest API docs](https://developer.atlassian.com/cloud/jira/platform/rest/v3/#version)
-- `jira-account`:
-  - _Optional_ (**required** when not using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login))
-  - See [Using Jira API with Basic header scheme](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)
-- `jira-token`:
-  - _Optional_ (**required** when not using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login))
-  - See [Using Jira API with Basic header scheme](https://developer.atlassian.com/cloud/jira/platform/basic-auth-for-rest-apis/)
-- `search-string`:
-  - _Required_
-  - The string to search for Jira issues.
-
-# Important
-
-Although all `jira-*` inputs are optional, they must be provided explicitly unless you are using [`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login).
-
-[`@atlassian/gajira-login`](https://github.com/atlassian/gajira-login) is an action that will write jira config data to a temporary file during the workflow so that other action can extract from it rather than having to input data.
-
-Starting from `v1.0.5`, the `jira-isssue-id` input will be optional due to the reason that some PRs are considered small enough and won't be linked to any Jira issue, therefore, it makes sense to exit safely without failing the workflow.
-
-# Example
-
-```yml
-# Use this and you won't have to provide `[jira-endpoint, jira-account, jira-token]` down there
-- uses: atlassian/gajira-login@master
-  env:
-    JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
-    JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
-    JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+# Envionment variables
+* JIRA_API_TOKEN - api token to use with jira connection - if no password is provided in yaml file this one will be used.
+* GITHUB_TOKEN - automatically provided by github CI it will be used to read github context object and extract information about the events
 
 
-  ...
-- uses: tuanddd/jira-automate-transition@v1.0.5
-  with:
-    github-token: ${{ secrets.GITHUB_TOKEN }}
-    column-to-move-to-when-review-requested: In Review
-    column-to-move-to-when-changes-requested: In Progress
-    column-to-move-to-when-merged: QA
-    jira-endpoint: https://...        # 3 inputs here are not required
-    jira-account: example@mail.com    # if you use the action mentioned
-    jira-token: ******                # above
-    search-string: ${{ github.event.pull_request.title }}
+# config.yaml
+
+config yaml is a yaml document describling connection params and transition rules. transition rules are processed sequentially and first rule that matches entirely is applied provided that current issue state allows such transition - if not transition is treated as not matching and next rule is applied.
+
+see sample yaml config file
+
+```yaml
+# regexp pattern to use for issue key matching (matched case insensitive) search will be done against pr TITLE and branch name. All found issues will be affected
+issueKeyRegExp: "ST-[0-9]+"
+
+connection:
+  # host to connect to
+  host: "stormideas.atlassian.net"
+  # user name to acces jira 
+  username: "jira-test@getstoryteller.com"
+  # password or token for jira - note that if you don't want to keep whole config as file secret you can use jiraToken action parameter
+  password: "***"
+
+# GitHub connection configuration (optional)
+github:
+  # GitHub token for API operations (optional if provided via githubToken input)
+  token: "***"
+
+# Enable milestone synchronization (optional, default: false)
+syncMilestones: true
+
+# rules are list of condition to be met in order to apply transition to the ticket
+rules:
+  # this rule apply only if issue is in selected for development or in progress state
+  - from:
+      - "Selected for Development"
+      - "In Progress"
+   # transition to apply provided that give state allows such transition   
+    transition: "In review"
+    # on what action this rule should be applied - note that depending on the action other properties might not be defined
+    on:
+      # when action is pull request
+      pull_request:
+      # ... and targets develop
+        targetBranches:
+          - develop
+      # ... and action is one of following    
+        actions:
+          - opened
+          - reopened
+          - synchronize
+      # ... and is not a draft    
+        draft: false
+      # .. and is not yet merged  
+        merged: false
+  - from:
+      - "In review"
+    transition: "to be dev tested"
+    on:
+      pull_request:
+        targetBranches:
+          - develop
+        actions:
+          - closed
+        # all given labels must be found  
+        withLabel:
+          - "to be dev tested"
+        # none of given labels mus be found  
+        withoutLabel:
+          - "work in progress"
+        draft: false
+        merged: true
+
+  -
+    from:
+      - "In review"
+    transition: "To be tested"
+    on:
+      pull_request:
+        targetBranches:
+          - develop
+        actions:
+          - closed
+        draft: false
+        merged: true
+
 ```
+
+# Milestone Synchronization
+
+When `syncMilestones` is enabled in the config, the action will:
+
+1. Check if the JIRA issue has a fix version (release) assigned
+2. Look for a corresponding GitHub milestone with the same name
+3. Create the milestone if it doesn't exist, including the release date from JIRA
+4. Add the PR to the milestone
+
+This ensures that GitHub PRs are properly linked to their corresponding JIRA releases, making it easier to track what changes are included in each release.
+
+# Documentation
+
+- [Development Guide](DEVELOPMENT.md) - Information for developers working on this action
+- [Configuration Guide](docs/configuration.md) - Detailed configuration options
+- [Progress](docs/progress.md) - Implementation progress and planned features
+- [Documentation Hub](docs/index.md) - Complete documentation

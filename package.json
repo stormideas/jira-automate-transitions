@@ -1,6 +1,6 @@
 {
   "name": "jira-automate-transition",
-  "version": "1.0.7-beta",
+  "version": "3.0.0",
   "description": "Github Action to automate Jira ticket transition",
   "dependencies": {
     "@actions/core": "^1.2.3",
@@ -10,34 +10,42 @@
     "@types/node": "^18.15.11",
     "@types/node-fetch": "^2.5.5",
     "@types/yaml": "^1.2.0",
+    "jira-client": "^8.2.2",
+    "js-yaml": "^4.1.0",
     "node-fetch": "^2.6.0",
     "typescript": "^5.0.4",
+    "wildcard-match": "^5.1.2",
     "yaml": "^1.7.2"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/jira-client": "^7.1.6",
+    "@types/js-yaml": "^4.0.5",
     "@zeit/ncc": "^0.21.1",
     "dotenv": "^8.2.0",
-    "husky": "^4.2.3"
+    "jest": "^29.5.0",
+    "ts-jest": "^29.1.0",
+    "ts-node": "^10.9.1"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "watch": "ncc build --watch --minify src/index.ts",
     "build": "ncc build src/index.ts",
     "run": "ncc run src/index.ts",
-    "playground": "ncc run src/playground/index.ts"
-  },
-  "husky": {
-    "hooks": {}
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:jira": "ts-node test/test-jira-integration.ts",
+    "test:milestone": "ts-node test/test-milestone-sync.ts"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/tuanddd/jira-transition-request-change.git"
+    "url": "git+https://github.com/stormideas/jira-automate-transitions.git"
   },
   "keywords": [],
-  "author": "Dao Tuan <heryhudson@gmail.com>",
+  "author": "Dave Branagh-Miscampbell <dave@getstoryteller.com>",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/tuanddd/jira-transition-request-change/issues"
+    "url": "https://github.com/stormideas/jira-automate-transitions/issues"
   },
-  "homepage": "https://github.com/tuanddd/jira-transition-request-change#readme"
+  "homepage": "https://github.com/stormideas/jira-automate-transitions#readme"
 }

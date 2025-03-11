@@ -1,0 +1,34 @@
+# Test configuration for JIRA integration
+issueKeyRegExp: "[A-Z]+-[0-9]+"
+
+connection:
+  # Replace with your JIRA host
+  host: "stormideas.atlassian.net"
+  # Replace with your JIRA username (email)
+  username: "jira-test@getstoryteller.com"
+  # Password will be provided via JIRA_API_TOKEN environment variable
+
+# GitHub connection configuration
+github:
+  # Token will be provided via GITHUB_TOKEN environment variable
+
+# Enable milestone synchronization for testing
+syncMilestones: true
+
+# Sample transition rules (modify as needed for your JIRA workflow)
+rules:
+  - from:
+      - "To Do"
+      - "In Progress"
+    transition: "In Review"
+    on:
+      pull_request:
+        targetBranches:
+          - develop
+          - main
+        actions:
+          - opened
+          - reopened
+          - synchronize
+        draft: false
+        merged: false 

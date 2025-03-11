@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
-    "strict": true,
+    "strict": false,
     "target": "ES2015",
-    "moduleResolution": "Node"
-  }
+    "allowSyntheticDefaultImports": true,
+    "moduleResolution": "Node",
+    "esModuleInterop": true,
+    "types": ["node", "jest"]
+  },
+  "include": ["src/**/*", "tests/**/*"]
 }

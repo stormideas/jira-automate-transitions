@@ -1,0 +1,35 @@
+issueKeyRegExp: "ST-[0-9]+"
+connection:
+  host: "stormideas.atlassian.net"
+  username: "michal.dabrowski@getstoryteller.com"
+
+rules:
+  -
+    from:
+      - "Selected for Development" 
+      - "In Progress"
+    transition: "In review"
+    on:
+      pull_request:
+        targetBranches:
+          - develop
+        actions:
+        - opened
+        - reopened
+        - synchronize
+        draft: false
+        merged: false
+  -
+    from: 
+      - "In review"
+    transition: "To be tested"
+    on:
+      pull_request:
+        targetBranches:
+          - develop
+        actions:
+        - closed 
+        draft: false
+        merged: true
+
+
