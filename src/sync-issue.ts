@@ -130,7 +130,10 @@ async function syncMilestone(
 
       // Add due date if available
       if (releaseDate) {
-        milestoneData.due_on = `${releaseDate}T00:00:00Z`;
+        // Add 24 hours to the release date
+        const releaseDateTime = new Date(`${releaseDate}T00:00:00Z`);
+        releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+        milestoneData.due_on = releaseDateTime.toISOString();
       }
 
       try {
