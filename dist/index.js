@@ -55460,7 +55460,32 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
         }
     });
 }
+// Helper function to fetch all milestones with pagination
+function getAllMilestones(octokit, owner, repo) {
+    return sync_issue_awaiter(this, void 0, void 0, function* () {
+        const milestones = [];
+        let page = 1;
+        const perPage = 100; // Maximum allowed per page
+        while (true) {
+            const { data } = yield octokit.rest.issues.listMilestones({
+                owner,
+                repo,
+                state: "all",
+                per_page: perPage,
+                page: page
+            });
+            milestones.push(...data);
+            // If we got fewer than perPage results, we've reached the end
+            if (data.length < perPage) {
+                break;
+            }
+            page++;
+        }
+        return milestones;
+    });
+}
 function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
+    var _a, _b, _c;
     return sync_issue_awaiter(this, void 0, void 0, function* () {
         if (!ciCtx.prNumber || !ciCtx.repo) {
             console.log("Missing PR number or repository information. Cannot sync milestone.");
@@ -55482,15 +55507,11 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
             // Initialize GitHub client with the newer API
             const octokit = Object(github.getOctokit)(githubToken);
             const { owner, name: repo } = ciCtx.repo;
-            // Check if milestone exists
+            // Check if milestone exists - fetch ALL milestones with pagination
             console.log(`Checking if milestone "${milestoneName}" exists in ${owner}/${repo}`);
             let milestone = null;
-            const { data: milestones } = yield octokit.rest.issues.listMilestones({
-                owner,
-                repo,
-                state: "all",
-            });
-            console.log(`Found ${milestones.length} milestones`);
+            const milestones = yield getAllMilestones(octokit, owner, repo);
+            console.log(`Found ${milestones.length} milestones (all pages)`);
             milestone = milestones.find((m) => m.title === milestoneName);
             if (milestone) {
                 console.log(`Found existing milestone: ${milestoneName} with ID: ${milestone.number}`);
@@ -55508,9 +55529,29 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                 if (releaseDate) {
                     milestoneData.due_on = `${releaseDate}T00:00:00Z`;
                 }
-                const { data: newMilestone } = yield octokit.rest.issues.createMilestone(milestoneData);
-                milestone = newMilestone;
-                console.log(`Created new milestone with ID: ${milestone.number}`);
+                try {
+                    const { data: newMilestone } = yield octokit.rest.issues.createMilestone(milestoneData);
+                    milestone = newMilestone;
+                    console.log(`Created new milestone with ID: ${milestone.number}`);
+                }
+                catch (createError) {
+                    // Handle the case where milestone was created between our check and creation attempt
+                    if (createError.status === 422 && ((_c = (_b = (_a = createError.response) === null || _a === void 0 ? void 0 : _a.data) === null || _b === void 0 ? void 0 : _b.errors) === null || _c === void 0 ? void 0 : _c.some(e => e.code === 'already_exists'))) {
+                        console.log(`Milestone "${milestoneName}" was created by another process. Fetching it...`);
+                        // Fetch the milestone that was just created
+                        const updatedMilestones = yield getAllMilestones(octokit, owner, repo);
+                        milestone = updatedMilestones.find((m) => m.title === milestoneName);
+                        if (milestone) {
+                            console.log(`Found the newly created milestone: ${milestoneName} with ID: ${milestone.number}`);
+                        }
+                        else {
+                            throw new Error(`Could not find milestone "${milestoneName}" after creation conflict`);
+                        }
+                    }
+                    else {
+                        throw createError;
+                    }
+                }
             }
             // Update PR with milestone
             console.log(`Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName} (ID: ${milestone.number})`);
