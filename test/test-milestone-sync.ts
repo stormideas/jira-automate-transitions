@@ -82,22 +82,69 @@ async function runTest() {
     const jiraRelease = fixVersions[0];
     console.log(`Found JIRA release: ${jiraRelease.name} with date: ${jiraRelease.releaseDate || 'No date'}`);
     
+    // Generate the JIRA release URL (same as in sync-issue.ts)
+    const jiraReleaseUrl = `https://${config.connection.host}/projects/${issueData.fields.project.key}/versions/${jiraRelease.id}/tab/release-report-all-issues`;
+    console.log(`JIRA release URL: ${jiraReleaseUrl}`);
+    
     // Step 3: Connect to GitHub and check for milestone
     console.log("\n--- Step 3: Connecting to GitHub and checking for milestone ---");
     
     const octokit = github.getOctokit(githubToken);
     
-    console.log(`Checking for milestone: ${jiraRelease.name}`);
+    console.log(`Checking for milestone with JIRA URL: ${jiraReleaseUrl}`);
     const milestones = await getAllMilestones(octokit, repoOwner, repoName);
     
     console.log(`Found ${milestones.length} milestones (all pages)`);
-    let milestone = milestones.find(m => m.title === jiraRelease.name);
+    // Search by URL in description instead of title (matching sync-issue.ts logic)
+    let milestone = milestones.find(m => 
+      m.description && m.description.includes(jiraReleaseUrl)
+    );
     
     if (milestone) {
-      console.log(`Milestone found: ${milestone.title} (${milestone.number})`);
+      console.log(`Milestone found by URL: ${milestone.title} (${milestone.number})`);
+      console.log(`Description: ${milestone.description}`);
       console.log(`Due date: ${milestone.due_on || 'No due date'}`);
       console.log(`Open issues: ${milestone.open_issues}`);
       console.log(`Closed issues: ${milestone.closed_issues}`);
+      
+      // Check if the milestone title matches the JIRA release name (same as sync-issue.ts)
+      if (milestone.title !== jiraRelease.name) {
+        console.log(`\nMilestone title "${milestone.title}" doesn't match JIRA release "${jiraRelease.name}".`);
+        console.log("In production, this would be updated automatically.");
+        
+        // Uncomment to actually update the milestone title
+        /*
+        try {
+          const updateData: any = {
+            owner: repoOwner,
+            repo: repoName,
+            milestone_number: milestone.number,
+            title: jiraRelease.name,
+            description: `JIRA Release: ${jiraReleaseUrl}`,
+          };
+
+          // Preserve due date if it exists
+          if (milestone.due_on) {
+            updateData.due_on = milestone.due_on;
+          } else if (jiraRelease.releaseDate) {
+            // Add due date if JIRA has a release date but milestone doesn't
+            const releaseDateTime = new Date(`${jiraRelease.releaseDate}T00:00:00Z`);
+            releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+            updateData.due_on = releaseDateTime.toISOString();
+          }
+
+          const { data: updatedMilestone } = await octokit.rest.issues.updateMilestone(
+            updateData
+          );
+          milestone = updatedMilestone;
+          console.log(`Updated milestone title to: ${milestone.title}`);
+        } catch (updateError) {
+          console.error(`Error updating milestone title: ${updateError.message}`);
+        }
+        */
+      } else {
+        console.log(`Milestone title matches JIRA release name: ${jiraRelease.name}`);
+      }
       
       // Step 4: Test updating a PR with the milestone (if PR number is provided)
       const testPrNumber = process.env.TEST_PR_NUMBER;
@@ -132,15 +179,19 @@ async function runTest() {
       
       // Uncomment to actually create the milestone
       /*
-      const milestoneData = {
+      const milestoneData: any = {
         owner: repoOwner,
         repo: repoName,
         title: jiraRelease.name,
-        description: `JIRA Release: ${jiraRelease.name}`,
+        description: `JIRA Release: ${jiraReleaseUrl}`,
       };
       
+      // Add due date if available (same logic as sync-issue.ts)
       if (jiraRelease.releaseDate) {
-        milestoneData.due_on = `${jiraRelease.releaseDate}T00:00:00Z`;
+        // Add 24 hours to the release date
+        const releaseDateTime = new Date(`${jiraRelease.releaseDate}T00:00:00Z`);
+        releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+        milestoneData.due_on = releaseDateTime.toISOString();
       }
       
       const { data: newMilestone } = await octokit.rest.issues.createMilestone(milestoneData);
