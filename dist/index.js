@@ -68357,6 +68357,115 @@ function loadConfig(configPath) {
 }
 
 
+;// CONCATENATED MODULE: ./src/github-utils.ts
+var github_utils_awaiter = (undefined && undefined.__awaiter) || function (thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
+};
+/**
+ * Helper function to fetch all milestones with pagination
+ * @param octokit GitHub API client
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @returns Array of all milestones
+ */
+function getAllMilestones(octokit, owner, repo) {
+    return github_utils_awaiter(this, void 0, void 0, function* () {
+        const milestones = [];
+        let page = 1;
+        const perPage = 100; // Maximum allowed per page
+        while (true) {
+            const { data } = yield octokit.rest.issues.listMilestones({
+                owner,
+                repo,
+                state: "all",
+                per_page: perPage,
+                page: page
+            });
+            milestones.push(...data);
+            // If we got fewer than perPage results, we've reached the end
+            if (data.length < perPage) {
+                break;
+            }
+            page++;
+        }
+        return milestones;
+    });
+}
+/**
+ * Updates a PR with a milestone and verifies the update
+ * @param octokit GitHub API client
+ * @param owner Repository owner
+ * @param repo Repository name
+ * @param prNumber PR number
+ * @param milestone Milestone object with number and title
+ * @returns Promise that resolves when update is complete and verified
+ */
+function updatePrWithMilestone(octokit, owner, repo, prNumber, milestone) {
+    return github_utils_awaiter(this, void 0, void 0, function* () {
+        console.log(`Updating PR #${prNumber} with milestone: ${milestone.title} (ID: ${milestone.number})`);
+        const { status } = yield octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: prNumber,
+            milestone: milestone.number,
+        });
+        console.log(`Update response status: ${status}`);
+        if (status >= 200 && status < 300) {
+            console.log(`Successfully updated PR with milestone: ${milestone.title}`);
+            // Verify the update
+            console.log("Verifying PR update...");
+            const { data: updatedPr } = yield octokit.rest.pulls.get({
+                owner,
+                repo,
+                pull_number: prNumber,
+            });
+            if (updatedPr.milestone && updatedPr.milestone.number === milestone.number) {
+                console.log("✅ Verification successful: PR has the correct milestone assigned");
+                return true;
+            }
+            else {
+                console.log("❌ Verification failed: PR does not have the expected milestone");
+                console.log(`Current milestone: ${updatedPr.milestone ? updatedPr.milestone.title : "None"}`);
+                return false;
+            }
+        }
+        else {
+            console.error(`Failed to update PR with milestone. Status: ${status}`);
+            return false;
+        }
+    });
+}
+
+;// CONCATENATED MODULE: ./src/jira-utils.ts
+// Use require for jira-client to avoid TypeScript issues
+const JiraApi = __nccwpck_require__(3094);
+/**
+ * Creates a JIRA API client with the provided configuration
+ * @param connectionConfig JIRA connection configuration
+ * @param jiraToken Optional JIRA token to override config password
+ * @returns Configured JIRA API client
+ */
+function createJiraClient(connectionConfig, jiraToken) {
+    var _a, _b;
+    const options = {
+        protocol: "https",
+        apiVersion: "2",
+        host: connectionConfig.host,
+        username: connectionConfig.username,
+        password: (_b = (_a = connectionConfig.password) !== null && _a !== void 0 ? _a : jiraToken) !== null && _b !== void 0 ? _b : process.env.JIRA_API_TOKEN,
+        strictSSL: true,
+    };
+    console.log("Jira Using connection: ");
+    console.log(JSON.stringify(options, null, 2));
+    return new JiraApi(options);
+}
+
 ;// CONCATENATED MODULE: ./node_modules/wildcard-match/build/index.es.mjs
 /**
  * Escapes a character if it has a special meaning in regular expressions
@@ -68536,24 +68645,14 @@ var sync_issue_awaiter = (undefined && undefined.__awaiter) || function (thisArg
 
 
 
-// Use require for jira-client to avoid TypeScript issues
-const JiraApi = __nccwpck_require__(3094);
+
+
 function syncIssue(issueKey, ciCtx, config, jiraToken) {
-    var _a, _b, _c;
+    var _a;
     return sync_issue_awaiter(this, void 0, void 0, function* () {
         const conCfg = config.connection;
         const rules = config.rules;
-        let options = {
-            protocol: "https",
-            apiVersion: "2",
-            host: conCfg.host,
-            username: conCfg.username,
-            password: (_b = (_a = conCfg.password) !== null && _a !== void 0 ? _a : jiraToken) !== null && _b !== void 0 ? _b : process.env.JIRA_API_TOKEN,
-            strictSSL: true,
-        };
-        console.log("Jira Using connection: ");
-        console.log(JSON.stringify(options, null, 2));
-        const api = new JiraApi(options);
+        const api = createJiraClient(conCfg, jiraToken);
         console.log(`Syncing issue ${issueKey}`);
         const issueData = yield api.getIssue(issueKey, [
             "status",
@@ -68580,33 +68679,9 @@ function syncIssue(issueKey, ciCtx, config, jiraToken) {
         if (config.syncMilestones === true &&
             ciCtx.prNumber &&
             ciCtx.repo &&
-            ((_c = config.github) === null || _c === void 0 ? void 0 : _c.token)) {
+            ((_a = config.github) === null || _a === void 0 ? void 0 : _a.token)) {
             yield syncMilestone(issueData, ciCtx, config.github.token, conCfg);
         }
-    });
-}
-// Helper function to fetch all milestones with pagination
-function getAllMilestones(octokit, owner, repo) {
-    return sync_issue_awaiter(this, void 0, void 0, function* () {
-        const milestones = [];
-        let page = 1;
-        const perPage = 100; // Maximum allowed per page
-        while (true) {
-            const { data } = yield octokit.rest.issues.listMilestones({
-                owner,
-                repo,
-                state: "all",
-                per_page: perPage,
-                page: page
-            });
-            milestones.push(...data);
-            // If we got fewer than perPage results, we've reached the end
-            if (data.length < perPage) {
-                break;
-            }
-            page++;
-        }
-        return milestones;
     });
 }
 function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
@@ -68679,64 +68754,39 @@ function syncMilestone(issueData, ciCtx, githubToken, conCfg) {
                 }
             }
             // Update PR with milestone
-            console.log(`Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName} (ID: ${milestone.number})`);
             try {
-                const { status } = yield octokit.rest.issues.update({
-                    owner,
-                    repo,
-                    issue_number: ciCtx.prNumber,
-                    milestone: milestone.number,
-                });
-                console.log(`Update response status: ${status}`);
-                if (status >= 200 && status < 300) {
-                    console.log(`Successfully updated PR with milestone: ${milestoneName}`);
-                    console.log("Verifying PR update...");
-                    const { data: updatedPr } = yield octokit.rest.pulls.get({
-                        owner,
-                        repo,
-                        pull_number: ciCtx.prNumber,
-                    });
-                    if (updatedPr.milestone &&
-                        updatedPr.milestone.number === milestone.number) {
-                        console.log("✅ Verification successful: PR has the correct milestone assigned");
+                const updateSuccess = yield updatePrWithMilestone(octokit, owner, repo, ciCtx.prNumber, { number: milestone.number, title: milestoneName });
+                if (!updateSuccess) {
+                    // Try an alternative approach if the first one fails
+                    console.log("Trying alternative approach to update PR...");
+                    try {
+                        // Verify the milestone exists and is valid
+                        const { data: verifiedMilestone } = yield octokit.rest.issues.getMilestone({
+                            owner,
+                            repo,
+                            milestone_number: milestone.number,
+                        });
+                        console.log(`Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`);
+                        // Try updating the PR again with explicit parameters
+                        const { status: altStatus } = yield octokit.rest.issues.update({
+                            owner,
+                            repo,
+                            issue_number: ciCtx.prNumber,
+                            milestone: verifiedMilestone.number,
+                            title: ciCtx.title,
+                            body: ciCtx.body, // Preserve existing body
+                        });
+                        console.log(`Alternative update completed with status: ${altStatus}`);
                     }
-                    else {
-                        console.log("❌ Verification failed: PR does not have the expected milestone");
-                        console.log(`Current milestone: ${updatedPr.milestone ? updatedPr.milestone.title : "None"}`);
+                    catch (altError) {
+                        console.error(`Alternative approach also failed: ${altError.message}`);
                     }
-                }
-                else {
-                    console.error(`Failed to update PR with milestone. Status: ${status}`);
                 }
             }
             catch (updateError) {
                 console.error(`Error updating PR with milestone: ${updateError.message}`);
                 if (updateError.response) {
                     console.error(`Status: ${updateError.response.status}, Data: ${JSON.stringify(updateError.response.data)}`);
-                }
-                // Try an alternative approach if the first one fails
-                console.log("Trying alternative approach to update PR...");
-                try {
-                    // Verify the milestone exists and is valid
-                    const { data: verifiedMilestone } = yield octokit.rest.issues.getMilestone({
-                        owner,
-                        repo,
-                        milestone_number: milestone.number,
-                    });
-                    console.log(`Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`);
-                    // Try updating the PR again with explicit parameters
-                    const { status: altStatus } = yield octokit.rest.issues.update({
-                        owner,
-                        repo,
-                        issue_number: ciCtx.prNumber,
-                        milestone: verifiedMilestone.number,
-                        title: ciCtx.title,
-                        body: ciCtx.body, // Preserve existing body
-                    });
-                    console.log(`Alternative update completed with status: ${altStatus}`);
-                }
-                catch (altError) {
-                    console.error(`Alternative approach also failed: ${altError.message}`);
                 }
             }
         }
