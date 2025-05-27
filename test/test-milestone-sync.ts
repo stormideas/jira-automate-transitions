@@ -24,6 +24,35 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
  * - TEST_CONFIG_PATH: Path to the config file (defaults to ./test-config.yml)
  * - TEST_PR_NUMBER: PR number to test milestone assignment (e.g., "123")
  */
+
+// Helper function to fetch all milestones with pagination
+async function getAllMilestones(octokit: ReturnType<typeof github.getOctokit>, owner: string, repo: string) {
+  const milestones: any[] = [];
+  let page = 1;
+  const perPage = 100; // Maximum allowed per page
+  
+  while (true) {
+    const { data } = await octokit.rest.issues.listMilestones({
+      owner,
+      repo,
+      state: "all",
+      per_page: perPage,
+      page: page
+    });
+    
+    milestones.push(...data);
+    
+    // If we got fewer than perPage results, we've reached the end
+    if (data.length < perPage) {
+      break;
+    }
+    
+    page++;
+  }
+  
+  return milestones;
+}
+
 async function runTest() {
   try {
     // Get environment variables
@@ -97,12 +126,9 @@ async function runTest() {
     const octokit = github.getOctokit(githubToken);
     
     console.log(`Checking for milestone: ${jiraRelease.name}`);
-    const { data: milestones } = await octokit.rest.issues.listMilestones({
-      owner: repoOwner,
-      repo: repoName,
-      state: 'all'
-    });
+    const milestones = await getAllMilestones(octokit, repoOwner, repoName);
     
+    console.log(`Found ${milestones.length} milestones (all pages)`);
     let milestone = milestones.find(m => m.title === jiraRelease.name);
     
     if (milestone) {
