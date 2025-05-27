@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run build:*)",
+      "Bash(node:*)",
+      "Bash(npm install:*)",
+      "Bash(npm uninstall:*)",
+      "Bash(npx @vercel/ncc build:*)",
+      "Bash(./node_modules/.bin/ncc:*)",
+      "Bash(ls:*)",
+      "Bash(npm ls:*)",
+      "Bash(find:*)",
+      "Bash(npm run:*)"
+    ],
+    "deny": []
+  }
+}

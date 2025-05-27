@@ -2,11 +2,10 @@ import * as Github from "@actions/core";
 import "console";
 import { Config, ConnectionCfg } from "./load-config";
 import { CiContext } from "./github-context";
+import { getAllMilestones, updatePrWithMilestone } from "./github-utils";
+import { createJiraClient } from "./jira-utils";
 import wcmatch from "wildcard-match";
 import * as github from "@actions/github";
-
-// Use require for jira-client to avoid TypeScript issues
-const JiraApi = require("jira-client");
 
 async function syncIssue(
   issueKey: string,
@@ -17,18 +16,7 @@ async function syncIssue(
   const conCfg = config.connection;
   const rules = config.rules;
 
-  let options = {
-    protocol: "https",
-    apiVersion: "2",
-    host: conCfg.host,
-    username: conCfg.username,
-    password: conCfg.password ?? jiraToken ?? process.env.JIRA_API_TOKEN,
-    strictSSL: true,
-  };
-  console.log("Jira Using connection: ");
-  console.log(JSON.stringify(options, null, 2));
-
-  const api = new JiraApi(options);
+  const api = createJiraClient(conCfg, jiraToken);
 
   console.log(`Syncing issue ${issueKey}`);
   const issueData = await api.getIssue(issueKey, [
@@ -114,24 +102,58 @@ async function syncMilestone(
     const octokit = github.getOctokit(githubToken);
     const { owner, name: repo } = ciCtx.repo;
 
-    // Check if milestone exists
+    // Check if milestone exists - search by URL in description instead of title
     console.log(
-      `Checking if milestone "${milestoneName}" exists in ${owner}/${repo}`
+      `Checking if milestone with JIRA URL "${jiraReleaseUrl}" exists in ${owner}/${repo}`
     );
     let milestone = null;
-    const { data: milestones } = await octokit.rest.issues.listMilestones({
-      owner,
-      repo,
-      state: "all",
-    });
+    const milestones = await getAllMilestones(octokit, owner, repo);
 
-    console.log(`Found ${milestones.length} milestones`);
-    milestone = milestones.find((m) => m.title === milestoneName);
+    console.log(`Found ${milestones.length} milestones (all pages)`);
+    milestone = milestones.find((m) => 
+      m.description && m.description.includes(jiraReleaseUrl)
+    );
 
     if (milestone) {
       console.log(
-        `Found existing milestone: ${milestoneName} with ID: ${milestone.number}`
+        `Found existing milestone by URL: ${milestone.title} with ID: ${milestone.number}`
       );
+      
+      // Check if the milestone title matches the JIRA release name
+      if (milestone.title !== milestoneName) {
+        console.log(
+          `Milestone title "${milestone.title}" doesn't match JIRA release "${milestoneName}". Updating...`
+        );
+        
+        try {
+          const updateData: any = {
+            owner,
+            repo,
+            milestone_number: milestone.number,
+            title: milestoneName,
+            description: `JIRA Release: ${jiraReleaseUrl}`,
+          };
+
+          // Preserve due date if it exists
+          if (milestone.due_on) {
+            updateData.due_on = milestone.due_on;
+          } else if (releaseDate) {
+            // Add due date if JIRA has a release date but milestone doesn't
+            const releaseDateTime = new Date(`${releaseDate}T00:00:00Z`);
+            releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+            updateData.due_on = releaseDateTime.toISOString();
+          }
+
+          const { data: updatedMilestone } = await octokit.rest.issues.updateMilestone(
+            updateData
+          );
+          milestone = updatedMilestone;
+          console.log(`Updated milestone title to: ${milestone.title}`);
+        } catch (updateError) {
+          console.error(`Error updating milestone title: ${updateError.message}`);
+          // Continue with the existing milestone even if update fails
+        }
+      }
     }
 
     // Create milestone if it doesn't exist
@@ -146,58 +168,78 @@ async function syncMilestone(
 
       // Add due date if available
       if (releaseDate) {
-        milestoneData.due_on = `${releaseDate}T00:00:00Z`;
+        // Add 24 hours to the release date
+        const releaseDateTime = new Date(`${releaseDate}T00:00:00Z`);
+        releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+        milestoneData.due_on = releaseDateTime.toISOString();
       }
 
-      const { data: newMilestone } = await octokit.rest.issues.createMilestone(
-        milestoneData
-      );
-      milestone = newMilestone;
-      console.log(`Created new milestone with ID: ${milestone.number}`);
+      try {
+        const { data: newMilestone } = await octokit.rest.issues.createMilestone(
+          milestoneData
+        );
+        milestone = newMilestone;
+        console.log(`Created new milestone with ID: ${milestone.number}`);
+      } catch (createError) {
+        // Handle the case where milestone was created between our check and creation attempt
+        if (createError.status === 422 && createError.response?.data?.errors?.some(e => e.code === 'already_exists')) {
+          console.log(`Milestone "${milestoneName}" was created by another process. Fetching it...`);
+          // Fetch the milestone that was just created - search by URL
+          const updatedMilestones = await getAllMilestones(octokit, owner, repo);
+          milestone = updatedMilestones.find((m) => 
+            m.description && m.description.includes(jiraReleaseUrl)
+          );
+          if (milestone) {
+            console.log(`Found the newly created milestone: ${milestone.title} with ID: ${milestone.number}`);
+          } else {
+            throw new Error(`Could not find milestone with JIRA URL "${jiraReleaseUrl}" after creation conflict`);
+          }
+        } else {
+          throw createError;
+        }
+      }
     }
 
     // Update PR with milestone
-    console.log(
-      `Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName} (ID: ${milestone.number})`
-    );
-
     try {
-      const { status } = await octokit.rest.issues.update({
+      const updateSuccess = await updatePrWithMilestone(
+        octokit,
         owner,
         repo,
-        issue_number: ciCtx.prNumber,
-        milestone: milestone.number,
-      });
+        ciCtx.prNumber,
+        { number: milestone.number, title: milestoneName }
+      );
 
-      console.log(`Update response status: ${status}`);
-      if (status >= 200 && status < 300) {
-        console.log(`Successfully updated PR with milestone: ${milestoneName}`);
-        console.log("Verifying PR update...");
-        const { data: updatedPr } = await octokit.rest.pulls.get({
-          owner,
-          repo,
-          pull_number: ciCtx.prNumber,
-        });
+      if (!updateSuccess) {
+        // Try an alternative approach if the first one fails
+        console.log("Trying alternative approach to update PR...");
+        try {
+          // Verify the milestone exists and is valid
+          const { data: verifiedMilestone } =
+            await octokit.rest.issues.getMilestone({
+              owner,
+              repo,
+              milestone_number: milestone.number,
+            });
 
-        if (
-          updatedPr.milestone &&
-          updatedPr.milestone.number === milestone.number
-        ) {
           console.log(
-            "✅ Verification successful: PR has the correct milestone assigned"
+            `Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`
           );
-        } else {
-          console.log(
-            "❌ Verification failed: PR does not have the expected milestone"
-          );
-          console.log(
-            `Current milestone: ${
-              updatedPr.milestone ? updatedPr.milestone.title : "None"
-            }`
-          );
+
+          // Try updating the PR again with explicit parameters
+          const { status: altStatus } = await octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: ciCtx.prNumber,
+            milestone: verifiedMilestone.number,
+            title: ciCtx.title, // Preserve existing title
+            body: ciCtx.body, // Preserve existing body
+          });
+
+          console.log(`Alternative update completed with status: ${altStatus}`);
+        } catch (altError) {
+          console.error(`Alternative approach also failed: ${altError.message}`);
         }
-      } else {
-        console.error(`Failed to update PR with milestone. Status: ${status}`);
       }
     } catch (updateError) {
       console.error(`Error updating PR with milestone: ${updateError.message}`);
@@ -207,36 +249,6 @@ async function syncMilestone(
             updateError.response.data
           )}`
         );
-      }
-
-      // Try an alternative approach if the first one fails
-      console.log("Trying alternative approach to update PR...");
-      try {
-        // Verify the milestone exists and is valid
-        const { data: verifiedMilestone } =
-          await octokit.rest.issues.getMilestone({
-            owner,
-            repo,
-            milestone_number: milestone.number,
-          });
-
-        console.log(
-          `Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`
-        );
-
-        // Try updating the PR again with explicit parameters
-        const { status: altStatus } = await octokit.rest.issues.update({
-          owner,
-          repo,
-          issue_number: ciCtx.prNumber,
-          milestone: verifiedMilestone.number,
-          title: ciCtx.title, // Preserve existing title
-          body: ciCtx.body, // Preserve existing body
-        });
-
-        console.log(`Alternative update completed with status: ${altStatus}`);
-      } catch (altError) {
-        console.error(`Alternative approach also failed: ${altError.message}`);
       }
     }
   } catch (error) {
