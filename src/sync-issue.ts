@@ -2,11 +2,10 @@ import * as Github from "@actions/core";
 import "console";
 import { Config, ConnectionCfg } from "./load-config";
 import { CiContext } from "./github-context";
+import { getAllMilestones, updatePrWithMilestone } from "./github-utils";
+import { createJiraClient } from "./jira-utils";
 import wcmatch from "wildcard-match";
 import * as github from "@actions/github";
-
-// Use require for jira-client to avoid TypeScript issues
-const JiraApi = require("jira-client");
 
 async function syncIssue(
   issueKey: string,
@@ -17,18 +16,7 @@ async function syncIssue(
   const conCfg = config.connection;
   const rules = config.rules;
 
-  let options = {
-    protocol: "https",
-    apiVersion: "2",
-    host: conCfg.host,
-    username: conCfg.username,
-    password: conCfg.password ?? jiraToken ?? process.env.JIRA_API_TOKEN,
-    strictSSL: true,
-  };
-  console.log("Jira Using connection: ");
-  console.log(JSON.stringify(options, null, 2));
-
-  const api = new JiraApi(options);
+  const api = createJiraClient(conCfg, jiraToken);
 
   console.log(`Syncing issue ${issueKey}`);
   const issueData = await api.getIssue(issueKey, [
@@ -73,34 +61,6 @@ async function syncIssue(
   ) {
     await syncMilestone(issueData, ciCtx, config.github.token, conCfg);
   }
-}
-
-// Helper function to fetch all milestones with pagination
-async function getAllMilestones(octokit: ReturnType<typeof github.getOctokit>, owner: string, repo: string) {
-  const milestones: any[] = [];
-  let page = 1;
-  const perPage = 100; // Maximum allowed per page
-  
-  while (true) {
-    const { data } = await octokit.rest.issues.listMilestones({
-      owner,
-      repo,
-      state: "all",
-      per_page: perPage,
-      page: page
-    });
-    
-    milestones.push(...data);
-    
-    // If we got fewer than perPage results, we've reached the end
-    if (data.length < perPage) {
-      break;
-    }
-    
-    page++;
-  }
-  
-  return milestones;
 }
 
 async function syncMilestone(
@@ -198,47 +158,45 @@ async function syncMilestone(
     }
 
     // Update PR with milestone
-    console.log(
-      `Updating PR #${ciCtx.prNumber} with milestone: ${milestoneName} (ID: ${milestone.number})`
-    );
-
     try {
-      const { status } = await octokit.rest.issues.update({
+      const updateSuccess = await updatePrWithMilestone(
+        octokit,
         owner,
         repo,
-        issue_number: ciCtx.prNumber,
-        milestone: milestone.number,
-      });
+        ciCtx.prNumber,
+        { number: milestone.number, title: milestoneName }
+      );
 
-      console.log(`Update response status: ${status}`);
-      if (status >= 200 && status < 300) {
-        console.log(`Successfully updated PR with milestone: ${milestoneName}`);
-        console.log("Verifying PR update...");
-        const { data: updatedPr } = await octokit.rest.pulls.get({
-          owner,
-          repo,
-          pull_number: ciCtx.prNumber,
-        });
+      if (!updateSuccess) {
+        // Try an alternative approach if the first one fails
+        console.log("Trying alternative approach to update PR...");
+        try {
+          // Verify the milestone exists and is valid
+          const { data: verifiedMilestone } =
+            await octokit.rest.issues.getMilestone({
+              owner,
+              repo,
+              milestone_number: milestone.number,
+            });
 
-        if (
-          updatedPr.milestone &&
-          updatedPr.milestone.number === milestone.number
-        ) {
           console.log(
-            "✅ Verification successful: PR has the correct milestone assigned"
+            `Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`
           );
-        } else {
-          console.log(
-            "❌ Verification failed: PR does not have the expected milestone"
-          );
-          console.log(
-            `Current milestone: ${
-              updatedPr.milestone ? updatedPr.milestone.title : "None"
-            }`
-          );
+
+          // Try updating the PR again with explicit parameters
+          const { status: altStatus } = await octokit.rest.issues.update({
+            owner,
+            repo,
+            issue_number: ciCtx.prNumber,
+            milestone: verifiedMilestone.number,
+            title: ciCtx.title, // Preserve existing title
+            body: ciCtx.body, // Preserve existing body
+          });
+
+          console.log(`Alternative update completed with status: ${altStatus}`);
+        } catch (altError) {
+          console.error(`Alternative approach also failed: ${altError.message}`);
         }
-      } else {
-        console.error(`Failed to update PR with milestone. Status: ${status}`);
       }
     } catch (updateError) {
       console.error(`Error updating PR with milestone: ${updateError.message}`);
@@ -248,36 +206,6 @@ async function syncMilestone(
             updateError.response.data
           )}`
         );
-      }
-
-      // Try an alternative approach if the first one fails
-      console.log("Trying alternative approach to update PR...");
-      try {
-        // Verify the milestone exists and is valid
-        const { data: verifiedMilestone } =
-          await octokit.rest.issues.getMilestone({
-            owner,
-            repo,
-            milestone_number: milestone.number,
-          });
-
-        console.log(
-          `Verified milestone exists: ${verifiedMilestone.title} (${verifiedMilestone.number})`
-        );
-
-        // Try updating the PR again with explicit parameters
-        const { status: altStatus } = await octokit.rest.issues.update({
-          owner,
-          repo,
-          issue_number: ciCtx.prNumber,
-          milestone: verifiedMilestone.number,
-          title: ciCtx.title, // Preserve existing title
-          body: ciCtx.body, // Preserve existing body
-        });
-
-        console.log(`Alternative update completed with status: ${altStatus}`);
-      } catch (altError) {
-        console.error(`Alternative approach also failed: ${altError.message}`);
       }
     }
   } catch (error) {

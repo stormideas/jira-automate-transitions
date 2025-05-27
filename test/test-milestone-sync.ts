@@ -1,11 +1,10 @@
 import { loadConfig } from "../src/load-config";
 import { CiContext } from "../src/github-context";
+import { getAllMilestones, updatePrWithMilestone } from "../src/github-utils";
+import { createJiraClient } from "../src/jira-utils";
 import * as dotenv from "dotenv";
 import * as path from "path";
 import * as github from "@actions/github";
-
-// Use require for jira-client to avoid TypeScript issues
-const JiraApi = require("jira-client");
 
 // Load environment variables from .env file
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -24,34 +23,6 @@ dotenv.config({ path: path.resolve(__dirname, "../.env") });
  * - TEST_CONFIG_PATH: Path to the config file (defaults to ./test-config.yml)
  * - TEST_PR_NUMBER: PR number to test milestone assignment (e.g., "123")
  */
-
-// Helper function to fetch all milestones with pagination
-async function getAllMilestones(octokit: ReturnType<typeof github.getOctokit>, owner: string, repo: string) {
-  const milestones: any[] = [];
-  let page = 1;
-  const perPage = 100; // Maximum allowed per page
-  
-  while (true) {
-    const { data } = await octokit.rest.issues.listMilestones({
-      owner,
-      repo,
-      state: "all",
-      per_page: perPage,
-      page: page
-    });
-    
-    milestones.push(...data);
-    
-    // If we got fewer than perPage results, we've reached the end
-    if (data.length < perPage) {
-      break;
-    }
-    
-    page++;
-  }
-  
-  return milestones;
-}
 
 async function runTest() {
   try {
@@ -90,17 +61,8 @@ async function runTest() {
     // Step 1: Connect to JIRA and get issue details
     console.log("\n--- Step 1: Connecting to JIRA and fetching issue details ---");
     
-    const jiraOptions = {
-      protocol: "https",
-      apiVersion: "2",
-      host: config.connection.host,
-      username: config.connection.username,
-      password: config.connection.password ?? jiraToken,
-      strictSSL: true
-    };
-    
-    console.log(`Connecting to JIRA host: ${jiraOptions.host}`);
-    const jira = new JiraApi(jiraOptions);
+    console.log(`Connecting to JIRA host: ${config.connection.host}`);
+    const jira = createJiraClient(config.connection, jiraToken);
     
     console.log(`Fetching issue: ${issueKey}`);
     const issueData = await jira.getIssue(issueKey, ["status", "fixVersions", "summary", "project"]);
@@ -144,33 +106,16 @@ async function runTest() {
         console.log(`Attempting to update PR #${testPrNumber} with milestone: ${milestone.title} (${milestone.number})`);
         
         try {
-          const { status } = await octokit.rest.issues.update({
-            owner: repoOwner,
-            repo: repoName,
-            issue_number: parseInt(testPrNumber),
-            milestone: milestone.number
-          });
-          
-          console.log(`Update response status: ${status}`);
-          if (status >= 200 && status < 300) {
-            console.log(`Successfully updated PR #${testPrNumber} with milestone: ${milestone.title}`);
-            
-            // Verify the update
-            console.log("Verifying PR update...");
-            const { data: updatedPr } = await octokit.rest.pulls.get({
-              owner: repoOwner,
-              repo: repoName,
-              pull_number: parseInt(testPrNumber)
-            });
-            
-            if (updatedPr.milestone && updatedPr.milestone.number === milestone.number) {
-              console.log("✅ Verification successful: PR has the correct milestone assigned");
-            } else {
-              console.log("❌ Verification failed: PR does not have the expected milestone");
-              console.log(`Current milestone: ${updatedPr.milestone ? updatedPr.milestone.title : 'None'}`);
-            }
-          } else {
-            console.error(`Failed to update PR with milestone. Status: ${status}`);
+          const updateSuccess = await updatePrWithMilestone(
+            octokit,
+            repoOwner,
+            repoName,
+            parseInt(testPrNumber),
+            { number: milestone.number, title: milestone.title }
+          );
+
+          if (!updateSuccess) {
+            console.error("Failed to update PR with milestone");
           }
         } catch (updateError) {
           console.error(`Error updating PR with milestone: ${updateError.message}`);
