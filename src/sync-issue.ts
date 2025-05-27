@@ -102,20 +102,58 @@ async function syncMilestone(
     const octokit = github.getOctokit(githubToken);
     const { owner, name: repo } = ciCtx.repo;
 
-    // Check if milestone exists - fetch ALL milestones with pagination
+    // Check if milestone exists - search by URL in description instead of title
     console.log(
-      `Checking if milestone "${milestoneName}" exists in ${owner}/${repo}`
+      `Checking if milestone with JIRA URL "${jiraReleaseUrl}" exists in ${owner}/${repo}`
     );
     let milestone = null;
     const milestones = await getAllMilestones(octokit, owner, repo);
 
     console.log(`Found ${milestones.length} milestones (all pages)`);
-    milestone = milestones.find((m) => m.title === milestoneName);
+    milestone = milestones.find((m) => 
+      m.description && m.description.includes(jiraReleaseUrl)
+    );
 
     if (milestone) {
       console.log(
-        `Found existing milestone: ${milestoneName} with ID: ${milestone.number}`
+        `Found existing milestone by URL: ${milestone.title} with ID: ${milestone.number}`
       );
+      
+      // Check if the milestone title matches the JIRA release name
+      if (milestone.title !== milestoneName) {
+        console.log(
+          `Milestone title "${milestone.title}" doesn't match JIRA release "${milestoneName}". Updating...`
+        );
+        
+        try {
+          const updateData: any = {
+            owner,
+            repo,
+            milestone_number: milestone.number,
+            title: milestoneName,
+            description: `JIRA Release: ${jiraReleaseUrl}`,
+          };
+
+          // Preserve due date if it exists
+          if (milestone.due_on) {
+            updateData.due_on = milestone.due_on;
+          } else if (releaseDate) {
+            // Add due date if JIRA has a release date but milestone doesn't
+            const releaseDateTime = new Date(`${releaseDate}T00:00:00Z`);
+            releaseDateTime.setDate(releaseDateTime.getDate() + 1);
+            updateData.due_on = releaseDateTime.toISOString();
+          }
+
+          const { data: updatedMilestone } = await octokit.rest.issues.updateMilestone(
+            updateData
+          );
+          milestone = updatedMilestone;
+          console.log(`Updated milestone title to: ${milestone.title}`);
+        } catch (updateError) {
+          console.error(`Error updating milestone title: ${updateError.message}`);
+          // Continue with the existing milestone even if update fails
+        }
+      }
     }
 
     // Create milestone if it doesn't exist
@@ -146,13 +184,15 @@ async function syncMilestone(
         // Handle the case where milestone was created between our check and creation attempt
         if (createError.status === 422 && createError.response?.data?.errors?.some(e => e.code === 'already_exists')) {
           console.log(`Milestone "${milestoneName}" was created by another process. Fetching it...`);
-          // Fetch the milestone that was just created
+          // Fetch the milestone that was just created - search by URL
           const updatedMilestones = await getAllMilestones(octokit, owner, repo);
-          milestone = updatedMilestones.find((m) => m.title === milestoneName);
+          milestone = updatedMilestones.find((m) => 
+            m.description && m.description.includes(jiraReleaseUrl)
+          );
           if (milestone) {
-            console.log(`Found the newly created milestone: ${milestoneName} with ID: ${milestone.number}`);
+            console.log(`Found the newly created milestone: ${milestone.title} with ID: ${milestone.number}`);
           } else {
-            throw new Error(`Could not find milestone "${milestoneName}" after creation conflict`);
+            throw new Error(`Could not find milestone with JIRA URL "${jiraReleaseUrl}" after creation conflict`);
           }
         } else {
           throw createError;
