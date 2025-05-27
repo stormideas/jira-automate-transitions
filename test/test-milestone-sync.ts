@@ -112,8 +112,6 @@ async function runTest() {
         console.log(`\nMilestone title "${milestone.title}" doesn't match JIRA release "${jiraRelease.name}".`);
         console.log("In production, this would be updated automatically.");
         
-        // Uncomment to actually update the milestone title
-        /*
         try {
           const updateData: any = {
             owner: repoOwner,
@@ -141,7 +139,6 @@ async function runTest() {
         } catch (updateError) {
           console.error(`Error updating milestone title: ${updateError.message}`);
         }
-        */
       } else {
         console.log(`Milestone title matches JIRA release name: ${jiraRelease.name}`);
       }
